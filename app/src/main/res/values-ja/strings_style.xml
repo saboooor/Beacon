@@ -107,4 +107,20 @@
     <!-- "Export presets" — title the system share sheet is given -->
     <string name="style_export_chooser">プリセットを書き出す</string>
 
+    <!-- Currently playing media colors -->
+    <string name="media_card_title">再生中のメディア</string>
+    <string name="media_card_caption">再生中の楽曲のアートワークから色を抽出し、HiLightリングを照らします。</string>
+    <string name="media_playing">再生中</string>
+    <string name="media_paused">一時停止</string>
+    <string name="media_apply_to_style">スタイルに適用</string>
+    <string name="media_applied_toast">メディアの色をスタイルに適用しました</string>
+    <string name="media_sync_toggle">再生中に表示</string>
+    <string name="media_sync_hint">メディア再生中にアルバムアートの色をHiLightアレイに自動表示します。</string>
+    <string name="media_no_playback">現在メディアは再生されていません。音楽アプリ（Spotify、YouTube Musicなど）で再生すると色が表示されます。</string>
+    <string name="media_test_sample">サンプル音楽でテスト</string>
+    <string name="media_exit_sample">サンプルを終了</string>
+    <string name="media_sample_badge">サンプル</string>
+    <string name="style_media_button">メディア</string>
+    <string name="style_use_media_colors">メディアの色を使用</string>
+
 </resources>

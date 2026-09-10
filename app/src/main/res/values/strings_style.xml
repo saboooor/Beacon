@@ -76,4 +76,20 @@
     <!-- Title the system share sheet is given when presets are exported -->
     <string name="style_export_chooser">Export presets</string>
 
+    <!-- Currently playing media colors -->
+    <string name="media_card_title">Now playing media</string>
+    <string name="media_card_caption">Extracts vibrant colors from your music\'s album art to illuminate the HiLight ring.</string>
+    <string name="media_playing">Playing</string>
+    <string name="media_paused">Paused</string>
+    <string name="media_apply_to_style">Apply to style</string>
+    <string name="media_applied_toast">Applied media colors to Always-On style</string>
+    <string name="media_sync_toggle">Show while playing</string>
+    <string name="media_sync_hint">Automatically displays the album artwork colors on your HiLight array whenever media is playing.</string>
+    <string name="media_no_playback">No media is currently playing. Play music in any app (Spotify, YouTube Music, etc.) to see its colors here.</string>
+    <string name="media_test_sample">Test with sample music</string>
+    <string name="media_exit_sample">Exit sample</string>
+    <string name="media_sample_badge">Sample</string>
+    <string name="style_media_button">Media</string>
+    <string name="style_use_media_colors">Use media colors</string>
+
 </resources>

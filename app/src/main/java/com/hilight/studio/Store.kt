@@ -307,6 +307,7 @@ class Store private constructor(private val app: Context) {
     private val main = Handler(Looper.getMainLooper())
 
     val deviceSignals = DeviceSignals(app, ::showDeviceSignal, ::cancelOwnedAlert)
+    val mediaTracker = MediaTracker(app) { onMediaStateChanged(it) }
 
     private val adb = AdbBackend(app)
     val shizuku = ShizukuBackend(app)
@@ -384,6 +385,11 @@ class Store private constructor(private val app: Context) {
     private val _chargingBreathe =
         MutableStateFlow(prefs.getBoolean("chargingBreathe", false))
     val chargingBreathe: StateFlow<Boolean> = _chargingBreathe.asStateFlow()
+
+    private val _mediaSyncEnabled =
+        MutableStateFlow(prefs.getBoolean("mediaSyncEnabled", false))
+    val mediaSyncEnabled: StateFlow<Boolean> = _mediaSyncEnabled.asStateFlow()
+    val currentMedia: StateFlow<MediaTrackInfo?> get() = mediaTracker.currentMedia
 
     private fun loadChargingPerLed(): List<Int> {
         val raw = prefs.getString("chargingPerLed", null) ?: return defaultBatteryColors()
@@ -515,6 +521,7 @@ class Store private constructor(private val app: Context) {
     private var activeNotifIndex = 0
     private var notifAlternationTask: Runnable? = null
     private var chargingOverride: JSONObject? = null
+    private var mediaOverride: JSONObject? = null
     private var stateRevision = SystemClock.elapsedRealtime()
     private var rootTransition = false
     private var drivingTransport: Transport? = null
@@ -971,6 +978,59 @@ class Store private constructor(private val app: Context) {
 
     fun resetChargingPerLed() {
         setChargingPerLed(defaultBatteryColors())
+    }
+
+    fun setMediaSyncEnabled(v: Boolean) {
+        _mediaSyncEnabled.value = v
+        prefs.edit().putBoolean("mediaSyncEnabled", v).apply()
+        updateMediaOverride()
+    }
+
+    fun applyMediaColorsToAmbient() {
+        val media = mediaTracker.currentMedia.value ?: return
+        setAmbient(_ambient.value.copy(pattern = Pattern.CUSTOM, perLed = media.colors))
+    }
+
+    fun applyMediaGradientToAmbient() {
+        val media = mediaTracker.currentMedia.value ?: return
+        setAmbient(
+            _ambient.value.copy(
+                pattern = Pattern.GRADIENT,
+                color = media.primaryColor,
+                secondColor = media.secondaryColor,
+            )
+        )
+    }
+
+    private fun onMediaStateChanged(info: MediaTrackInfo?) {
+        updateMediaOverride()
+    }
+
+    fun updateMediaOverride() {
+        val media = mediaTracker.currentMedia.value
+        if (!_mediaSyncEnabled.value || media == null || !media.isPlaying) {
+            if (mediaOverride != null) {
+                mediaOverride = null
+                pushCurrent(arm = false)
+            }
+            return
+        }
+
+        val alertObj = JSONObject().apply {
+            put("id", Bridge.nextAlertId())
+            put("pattern", "custom")
+            put("color", media.primaryColor.toUInt().toLong())
+            put("colors", JSONArray().also { a -> media.colors.forEach { a.put(it.toUInt().toLong()) } })
+            put("durationMs", 0)
+            put("speedMs", 1800)
+            put("brightness", 0.8)
+            put("source", "media")
+            put("rotateMs", 1500)
+            put("rotateFade", true)
+            put("spread", true)
+        }
+        mediaOverride = alertObj
+        pushCurrent(arm = false)
     }
 
     fun setRespectDnd(v: Boolean) {
@@ -1443,11 +1503,11 @@ class Store private constructor(private val app: Context) {
 
     // ------------------------------------------------------------------ light output
 
-    /** The highest layer that should currently be showing: alert, else override, else charging, else ambient. */
+    /** The highest layer that should currently be showing: alert, else override, else charging, else media, else ambient. */
     fun pushCurrent(arm: Boolean = true) =
         send(
-            _enabled.value || (_chargingIndicator.value && _isCharging.value),
-            activeAlert ?: foregroundOverride?.second ?: chargingOverride,
+            _enabled.value || (_chargingIndicator.value && _isCharging.value) || (_mediaSyncEnabled.value && (mediaTracker.currentMedia.value?.isPlaying == true)),
+            activeAlert ?: foregroundOverride?.second ?: chargingOverride ?: mediaOverride,
             arm,
         )
 

@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
         Store.get(this).apply {
             syncForegroundWatcher()
             refreshStatus()
+            mediaTracker.startListening()
         }
     }
 

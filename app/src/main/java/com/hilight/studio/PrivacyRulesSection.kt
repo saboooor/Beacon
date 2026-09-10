@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -15,17 +16,24 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,8 +42,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun PrivacyRulesSection(
@@ -58,7 +70,8 @@ fun PrivacyRulesSection(
     }
 
     rules.forEach { rule ->
-        PixelCard {
+        val haptics = LocalHapticFeedback.current
+        PixelCard(onClick = { onEdit(rule) }) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -75,7 +88,7 @@ fun PrivacyRulesSection(
                         active = rule.enabled,
                         modifier = Modifier.size(42.dp),
                     )
-                    Column {
+                    Column(Modifier.weight(1f, fill = false)) {
                         Text(
                             if (rule.activity == PrivacyActivity.MICROPHONE)
                                 stringResource(R.string.privacy_microphone_active)
@@ -95,17 +108,29 @@ fun PrivacyRulesSection(
                         )
                     }
                 }
-                Switch(checked = rule.enabled, onCheckedChange = { onToggle(rule) })
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FilledTonalButton(onClick = { onEdit(rule) }, modifier = Modifier.weight(1f)) {
-                    ButtonLabel(stringResource(R.string.common_edit))
-                }
-                FilledTonalButton(onClick = { onTest(rule) }, modifier = Modifier.weight(1f)) {
-                    ButtonLabel(stringResource(R.string.common_test))
-                }
-                TextButton(onClick = { onDelete(rule) }, modifier = Modifier.weight(1f)) {
-                    ButtonLabel(stringResource(R.string.common_delete))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    IconButton(onClick = { onTest(rule) }) {
+                        Icon(
+                            Icons.Rounded.PlayArrow,
+                            contentDescription = stringResource(R.string.common_test),
+                        )
+                    }
+                    IconButton(onClick = { onDelete(rule) }) {
+                        Icon(
+                            Icons.Rounded.DeleteOutline,
+                            contentDescription = stringResource(R.string.common_delete),
+                        )
+                    }
+                    Switch(
+                        checked = rule.enabled,
+                        onCheckedChange = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onToggle(rule)
+                        },
+                    )
                 }
             }
         }
@@ -158,10 +183,12 @@ private fun PrivacyActivityChoice(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrivacyRuleEditorDialog(
     rule: PrivacyRule,
     existing: List<PrivacyRule>,
+    safetyGuardsDisabled: Boolean = false,
     onDismiss: () -> Unit,
     onSave: (PrivacyRule) -> Unit,
     onTest: (PrivacyRule) -> Unit,
@@ -169,30 +196,49 @@ fun PrivacyRuleEditorDialog(
     var edited by remember(rule) { mutableStateOf(rule) }
     val replacesAnother = existing.any { it.id == edited.id && it != rule }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        shape = MaterialTheme.shapes.extraLarge,
-        title = {
-            Text(
-                if (edited.isCatchAll) stringResource(R.string.rules_any_app)
-                else edited.appLabel.ifBlank { edited.pkg }
-            )
-        },
-        confirmButton = {
-            Button(onClick = { onSave(edited) }) {
-                ButtonLabel(stringResource(R.string.common_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                ButtonLabel(stringResource(R.string.common_cancel))
-            }
-        },
-        text = {
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            if (edited.isCatchAll) stringResource(R.string.rules_any_app)
+                            else edited.appLabel.ifBlank { edited.pkg }
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.common_cancel),
+                            )
+                        }
+                    },
+                    actions = {
+                        Button(onClick = { onSave(edited) }) {
+                            ButtonLabel(stringResource(R.string.common_save))
+                        }
+                    },
+                )
+            },
+        ) { innerPadding ->
             Column(
-                Modifier.heightIn(max = 540.dp).verticalScroll(rememberScrollState()),
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
+                LedStrip(
+                    edited.pattern,
+                    edited.effectiveLook(),
+                    heightDp = 48,
+                )
+
                 val microphone = stringResource(R.string.privacy_microphone)
                 val camera = stringResource(R.string.privacy_camera)
                 SegmentedSelector(
@@ -232,19 +278,21 @@ fun PrivacyRuleEditorDialog(
                     ColorPicker(edited.color, { edited = edited.copy(color = it) })
                 }
 
-                GatedDurationSlider(
-                    label = stringResource(R.string.privacy_light_time),
-                    valueMs = edited.lightMs,
-                    minMs = PrivacyRule.MIN_PHASE_MS,
-                    safeMaxMs = Limits.WARN_ABOVE_MS,
-                    extendedMaxMs = PrivacyRule.MAX_PHASE_MS,
-                    unlockLabel = stringResource(R.string.privacy_allow_long_light),
-                    warnFirst = stringResource(R.string.privacy_long_warn_first_title) to
-                        stringResource(R.string.privacy_long_warn_first_body),
-                    warnSecond = stringResource(R.string.privacy_long_warn_second_title) to
-                        stringResource(R.string.privacy_long_warn_second_body),
-                    onChange = { edited = edited.copy(lightMs = it) },
-                )
+                if (!safetyGuardsDisabled) {
+                    GatedDurationSlider(
+                        label = stringResource(R.string.privacy_light_time),
+                        valueMs = edited.lightMs,
+                        minMs = PrivacyRule.MIN_PHASE_MS,
+                        safeMaxMs = Limits.WARN_ABOVE_MS,
+                        extendedMaxMs = PrivacyRule.MAX_PHASE_MS,
+                        unlockLabel = stringResource(R.string.privacy_allow_long_light),
+                        warnFirst = stringResource(R.string.privacy_long_warn_first_title) to
+                            stringResource(R.string.privacy_long_warn_first_body),
+                        warnSecond = stringResource(R.string.privacy_long_warn_second_title) to
+                            stringResource(R.string.privacy_long_warn_second_body),
+                        onChange = { edited = edited.copy(lightMs = it) },
+                    )
+                }
 
                 PixelSlider(
                     label = stringResource(R.string.privacy_cooldown),
@@ -279,6 +327,6 @@ fun PrivacyRuleEditorDialog(
                 }
                 if (replacesAnother) Caption(stringResource(R.string.privacy_replace_warning))
             }
-        },
-    )
+        }
+    }
 }

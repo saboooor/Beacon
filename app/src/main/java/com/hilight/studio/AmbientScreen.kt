@@ -60,8 +60,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun AmbientScreen(store: Store) {
     val ambient by store.ambient.collectAsStateWithLifecycle()
     val enabled by store.enabled.collectAsStateWithLifecycle()
+    val currentMedia by store.currentMedia.collectAsStateWithLifecycle()
     var editingLed by rememberSaveable { mutableIntStateOf(0) }
 
+    MediaCard(store)
     TryAnEffectCard(store)
 
     PixelCard(tone = 2) {
@@ -162,7 +164,7 @@ fun AmbientScreen(store: Store) {
                         ) { store.setAmbient(ambient.copy(rotateFade = it)) }
                     }
                     val wallpaper = wallpaperLedColours()
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilledTonalButton(
                             onClick = {
                                 store.setAmbient(
@@ -171,16 +173,26 @@ fun AmbientScreen(store: Store) {
                                 )
                             },
                             modifier = Modifier.weight(1f),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                         ) { ButtonLabel(stringResource(Pattern.RAINBOW.shortLabelRes)) }
                         FilledTonalButton(
                             onClick = { store.setAmbient(ambient.copy(perLed = wallpaper)) },
                             modifier = Modifier.weight(1f),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                         ) { ButtonLabel(stringResource(R.string.style_wallpaper)) }
+                        if (currentMedia != null) {
+                            FilledTonalButton(
+                                onClick = { store.applyMediaColorsToAmbient() },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                            ) { ButtonLabel(stringResource(R.string.style_media_button)) }
+                        }
                         FilledTonalButton(
                             onClick = {
                                 store.setAmbient(ambient.copy(perLed = List(LED_COUNT) { ambient.color }))
                             },
                             modifier = Modifier.weight(1f),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                         ) { ButtonLabel(stringResource(R.string.pattern_solid)) }
                     }
                 }
@@ -197,6 +209,14 @@ fun AmbientScreen(store: Store) {
                         { store.setAmbient(ambient.copy(secondColor = it)) },
                         stringResource(R.string.style_gradient_end),
                     )
+                    if (currentMedia != null) {
+                        FilledTonalButton(
+                            onClick = { store.applyMediaGradientToAmbient() },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            ButtonLabel(stringResource(R.string.style_use_media_colors))
+                        }
+                    }
                     PixelSlider(
                         stringResource(R.string.style_rotate_around_array),
                         ambient.rotateMs.toFloat(),

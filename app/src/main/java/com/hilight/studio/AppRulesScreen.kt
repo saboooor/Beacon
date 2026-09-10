@@ -104,6 +104,7 @@ fun AppRulesScreen(store: Store) {
     val rules by store.rules.collectAsStateWithLifecycle()
     val presets by store.presets.collectAsStateWithLifecycle()
     val privacyRules by store.privacyRules.collectAsStateWithLifecycle()
+    val safetyGuardsDisabled by store.safetyGuardsDisabled.collectAsStateWithLifecycle()
     val conversations by store.conversations.collectAsStateWithLifecycle()
     val lastMatch by store.lastMatch.collectAsStateWithLifecycle()
     val faceDownNoticeAccepted by store.faceDownNoticeAccepted.collectAsStateWithLifecycle()
@@ -509,6 +510,7 @@ fun AppRulesScreen(store: Store) {
         PrivacyRuleEditorDialog(
             rule = rule,
             existing = privacyRules,
+            safetyGuardsDisabled = safetyGuardsDisabled,
             onDismiss = { editingPrivacy = null },
             onSave = {
                 store.upsertPrivacyRule(it, replacing = rule)

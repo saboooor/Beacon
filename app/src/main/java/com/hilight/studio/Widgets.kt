@@ -41,6 +41,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
@@ -204,6 +206,12 @@ fun ColorPickerDialog(
         mutableStateOf(String.format("%06X", currentColor and 0xFFFFFF))
     }
 
+    val context = LocalContext.current
+    val currentMedia by remember(context) {
+        runCatching { Store.get(context).mediaTracker.currentMedia }
+            .getOrDefault(MutableStateFlow(null))
+    }.collectAsStateWithLifecycle()
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, style = MaterialTheme.typography.titleLarge) },
@@ -351,6 +359,42 @@ fun ColorPickerDialog(
                                     value = hsv[2]
                                 }
                         )
+                    }
+                }
+
+                if (currentMedia != null && currentMedia!!.colors.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.media_card_title),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        currentMedia!!.colors.forEach { c ->
+                            val selected = (c and 0xFFFFFF) == (currentColor and 0xFFFFFF)
+                            Box(
+                                Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(c))
+                                    .border(
+                                        if (selected) 2.5.dp else 1.dp,
+                                        if (selected) MaterialTheme.colorScheme.onSurface
+                                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                        CircleShape,
+                                    )
+                                    .clickable {
+                                        val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(c, it) }
+                                        hue = hsv[0]
+                                        sat = hsv[1]
+                                        value = hsv[2]
+                                    }
+                            )
+                        }
                     }
                 }
             }

@@ -62,6 +62,7 @@ class NotificationTrigger : NotificationListenerService() {
         // restores persisted While open rules without requiring the user to open HiLight Studio or
         // wait for an unrelated notification first.
         store.syncForegroundWatcher()
+        store.mediaTracker.startListening()
         connected = true
         store.deviceSignals.onInterruptionFilterChanged(currentInterruptionFilter)
         if (store.enabled.value && locked()) seedReminders()
@@ -114,6 +115,7 @@ class NotificationTrigger : NotificationListenerService() {
         // the catch-all rule every time the watcher restarted.
         if (sbn.packageName == packageName && sbn.notification.channelId == "fg_watch") return
 
+        store.mediaTracker.onNotificationPosted(sbn)
         updateIncomingCall(sbn)
         if (store.deviceSignals.settings.value.callsEnabled && incoming(sbn)) return
         val info = readMessage(sbn)
@@ -191,6 +193,7 @@ class NotificationTrigger : NotificationListenerService() {
      */
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         runCatching {
+            store.mediaTracker.onNotificationRemoved(sbn)
             val key = NotificationPeek.read(sbn).notifKey.ifEmpty { sbn.key }
             if (key.isNotEmpty()) synchronized(handled) { handled.remove(key) }
             store.dismissNotificationAlert(key)
@@ -209,6 +212,7 @@ class NotificationTrigger : NotificationListenerService() {
      * be misleading.
      */
     override fun onListenerDisconnected() {
+        store.mediaTracker.stopListening()
         synchronized(handled) { handled.clear() }
         store.clearActiveNotifications()
         connected = false
