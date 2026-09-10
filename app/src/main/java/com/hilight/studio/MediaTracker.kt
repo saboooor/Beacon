@@ -565,14 +565,18 @@ class MediaTracker(
             val g = (color ushr 8) and 0xFF
             val b = color and 0xFF
             val maxChannel = maxOf(r, g, b)
-            if (maxChannel < 40) {
-                val scale = 40f / maxOf(maxChannel, 1)
-                val newR = (r * scale).toInt().coerceIn(0, 255)
-                val newG = (g * scale).toInt().coerceIn(0, 255)
-                val newB = (b * scale).toInt().coerceIn(0, 255)
-                return (0xFF shl 24) or (newR shl 16) or (newG shl 8) or newB
-            }
-            return (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+            // Pure black → fallback to white rather than a hue-less void.
+            if (maxChannel == 0) return (0xFF shl 24) or (255 shl 16)
+            // Colors below 30% HSV value are intentionally dark (e.g. near-black) — keep as-is.
+            if (maxChannel < 77) return (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+            // Work in HSV so we can control brightness and saturation independently.
+            val hsv = FloatArray(3)
+            colorToHsv(color, hsv)
+            // Near-white / achromatic: original saturation is already very low — pin to full
+            // brightness but leave saturation alone so the color stays white, not hue-shifted.
+            if (hsv[1] < 0.15f) return hsvToColor(hsv[0], hsv[1], 1f)
+            // Chromatic color: pin V=1 and clamp S to ≥0.85 to prevent washed-out pastels.
+            return hsvToColor(hsv[0], hsv[1].coerceAtLeast(0.85f), 1f)
         }
 
         fun colorToHsv(color: Int, outHsv: FloatArray) {

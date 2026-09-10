@@ -1,20 +1,21 @@
-<img src="docs/media/hilight-studio-logo.png" alt="HiLight Studio logo" width="112" align="right">
+<img src="docs/media/beacon-logo.png" alt="Beacon logo" width="112" align="right">
 
-# HiLight Studio
+# Beacon
+A fork of HiLight Studio, ask even more from your HiLight.
 
 Control the eight-LED HiLight array on Pixel 11 Pro devices.
 
-[![Android checks](https://github.com/DhananjayBhosale/hilight-studio/actions/workflows/android.yml/badge.svg)](https://github.com/DhananjayBhosale/hilight-studio/actions/workflows/android.yml)
-[![Latest release](https://img.shields.io/github/v/release/DhananjayBhosale/hilight-studio?include_prereleases&label=release)](https://github.com/DhananjayBhosale/hilight-studio/releases)
+[![Android checks](https://github.com/saboooor/Beacon/actions/workflows/android.yml/badge.svg)](https://github.com/saboooor/Beacon/actions/workflows/android.yml)
+[![Latest release](https://img.shields.io/github/v/release/saboooor/Beacon?include_prereleases&label=release)](https://github.com/saboooor/Beacon/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2f81f7.svg)](LICENSE)
 
 <h2><strong>Now available on the Play Store. <a href="https://groups.google.com/g/apps-beta-testing-dhananjaytech">Join this group first</a> and then <a href="https://play.google.com/apps/testing/com.highlight.studio">download the app from the Play Store</a>.</strong></h2>
 
 > [!IMPORTANT]
-> HiLight Studio is experimental and supports only the Pixel 11 Pro, Pixel 11 Pro XL, and Pixel 11 Pro Fold on Android 17 (API 37). It is not affiliated with or endorsed by Google.
+> Beacon is experimental and supports only the Pixel 11 Pro, Pixel 11 Pro XL, and Pixel 11 Pro Fold on Android 17 (API 37). It is not affiliated with or endorsed by Google.
 
 <p align="center">
-  <img src="docs/media/screen-live.png" alt="Live tab controlling the HiLight array on a Pixel 11 Pro XL" width="420">
+  <img src="docs/media/screen-style1.JPEG" alt="Style tab with presets, patterns, and colour controls" width="420">
 </p>
 
 ## Features
@@ -38,9 +39,9 @@ Control the eight-LED HiLight array on Pixel 11 Pro devices.
 
 <table>
 <tr>
-<td width="33%"><img src="docs/media/screen-style.png" alt="Style tab with presets, patterns, and colour controls"></td>
-<td width="33%"><img src="docs/media/screen-apps.png" alt="Apps tab with per-app rules"></td>
-<td width="33%"><img src="docs/media/screen-setup.png" alt="Setup tab with access and safety controls"></td>
+<td width="33%"><img src="docs/media/screen-style2.JPEG" alt="Style tab with more options"></td>
+<td width="33%"><img src="docs/media/screen-apps.JPEG" alt="Apps tab with per-app rules"></td>
+<td width="33%"><img src="docs/media/screen-settings.JPEG" alt="Setup tab with access and safety controls"></td>
 </tr>
 <tr>
 <td align="center"><sub><b>Style</b></sub></td>
@@ -51,40 +52,33 @@ Control the eight-LED HiLight array on Pixel 11 Pro devices.
 
 ## Install
 
-### Google Play closed test
-
-1. [Join the tester Google Group](https://groups.google.com/g/apps-beta-testing-dhananjaytech) with the Google account used on your supported Pixel.
-2. [Open the Play testing page](https://play.google.com/apps/testing/com.highlight.studio), opt in, and install Highlight Studio from Google Play.
-
-The Play edition installs separately from the experimental GitHub build and starts with its own settings.
-
 ### GitHub experimental APK
 
 For manual installation, use ADB. Play Protect may block direct installs from a browser or file manager because the app uses notification access for LED alerts.
 
-1. Download the signed APK from the [latest GitHub prerelease](https://github.com/DhananjayBhosale/hilight-studio/releases) to your computer.
+1. Download the signed APK from the [latest GitHub prerelease](https://github.com/saboooor/Beacon/releases) to your computer.
 2. Connect a supported Pixel with USB debugging enabled and approve the computer on the phone.
 3. From the folder containing the APK, run:
 
 ```bash
-adb install -r HiLight-Studio-v1.0.12-experimental-signed.apk
+adb install -r Beacon-v1.0.12-experimental-signed.apk
 ```
 
 If you previously installed v1.0.3 or an older debug-signed build, uninstall it once before installing a permanently signed release because the signing certificates are different:
 
 ```bash
 adb uninstall com.hilight.studio
-adb install HiLight-Studio-v1.0.12-experimental-signed.apk
+adb install Beacon-v1.0.12-experimental-signed.apk
 ```
 
-The published APK is an experimental release signed with HiLight Studio's permanent release
+The published APK is an experimental release signed with Beacon's permanent release
 certificate. v1.0.12 updates any release carrying that same certificate normally.
 
-HiLight Studio needs privileged access to the Android lights service. The renderer must be restarted after every reboot.
+Beacon needs privileged access to the Android lights service. The renderer must be restarted after every reboot.
 
 ### Root
 
-If the phone is rooted, open HiLight Studio and turn it on. The app detects root automatically and
+If the phone is rooted, open Beacon and turn it on. The app detects root automatically and
 uses it instead of Shizuku or ADB. Approve the one-time request from your root manager when it
 appears; no other setup is needed.
 
@@ -92,9 +86,9 @@ appears; no other setup is needed.
 
 1. Install [Shizuku](https://shizuku.rikka.app/) v12 or newer.
 2. Start it using Wireless debugging.
-3. Open HiLight Studio, go to **Setup**, tap **Request access**, and approve the request.
+3. Open Beacon, go to **Setup**, tap **Request access**, and approve the request.
 
-Restart Shizuku after each reboot, then reopen HiLight Studio. v1.0.9 checks the renderer identity
+Restart Shizuku after each reboot, then reopen Beacon. v1.0.9 checks the renderer identity
 before replaying the visible/current state. It may send a minimal disabled state to hold output dark
 while an old daemon is removed and rebound once; if ownership is still unresolved, the app fails
 closed.
@@ -102,7 +96,7 @@ closed.
 ### ADB
 
 1. Enable **Developer options** and **USB debugging** on the phone.
-2. Install and open HiLight Studio once so it can create its state files.
+2. Install and open Beacon once so it can create its state files.
 3. In **Setup → ADB**, copy the single combined command for your desktop shell. It enumerates only the exact HiLight
    helper/Shizuku process identities, sends cooperative termination, waits up to 6.5 seconds for
    confirmed exit, and only then starts a fresh helper with a per-process instance ID. Starting is
@@ -172,7 +166,7 @@ See [Technical details](docs/TECHNICAL.md) for the renderer architecture, hardwa
 
 ## Privacy
 
-HiLight Studio has no analytics, account system, or telemetry. It uses the internet only when you
+Beacon has no analytics, account system, or telemetry. It uses the internet only when you
 tap **Check for updates** under Setup, which fetches public release information from GitHub. No app
 rules, notification data, or settings are sent. App rules and presets stay on the device.
 Notification and usage access are optional and are used locally for the rules you enable. Privacy
@@ -194,7 +188,7 @@ Requirements:
 - Android Studio or a command-line Android SDK installation
 
 ```bash
-git clone https://github.com/DhananjayBhosale/hilight-studio.git
+git clone https://github.com/saboooor/Beacon.git
 cd hilight-studio
 ./gradlew :app:testDebugUnitTest :app:build :app:lint
 ```

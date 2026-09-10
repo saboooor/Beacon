@@ -3,7 +3,7 @@ name: Android checks
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [beacon]
   workflow_dispatch:
 
 permissions:

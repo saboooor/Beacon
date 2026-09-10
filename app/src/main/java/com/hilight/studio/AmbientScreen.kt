@@ -63,7 +63,6 @@ fun AmbientScreen(store: Store) {
     val currentMedia by store.currentMedia.collectAsStateWithLifecycle()
     var editingLed by rememberSaveable { mutableIntStateOf(0) }
 
-    MediaCard(store)
     TryAnEffectCard(store)
 
     PixelCard(tone = 2) {
@@ -272,6 +271,7 @@ fun AmbientScreen(store: Store) {
     }
 
     PresetsCard(store)
+    MediaCard(store)
     ChargingBatteryCard(store)
     DeviceSignalsSection(store)
 }

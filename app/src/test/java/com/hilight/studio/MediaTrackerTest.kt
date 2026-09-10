@@ -59,18 +59,18 @@ class MediaTrackerTest {
 
         assertEquals("Must produce exactly 8 LED colors", 8, colors.size)
 
-        // The colors should reflect the true dominant tones of the artwork
+        // Navy (#162032, max channel 50 < 77) is below the boost threshold — kept as-is.
         val hasNavyTone = colors.any { c ->
             val r = (c ushr 16) and 0xFF
             val g = (c ushr 8) and 0xFF
             val b = c and 0xFF
-            b > r && b > g && r < 60 // Deep blue tone
+            b > r && b > g && b <= 77 // Blue dominant, intentionally dark (not boosted)
         }
+        // Coral (#E05A47, max 224 ≥ 77) → HSV boosted to S=0.85, V=1.0 → vivid warm red.
         val hasCoralTone = colors.any { c ->
             val r = (c ushr 16) and 0xFF
             val g = (c ushr 8) and 0xFF
-            val b = c and 0xFF
-            r > 180 && g in 60..140 // Warm red/coral tone
+            r > 200 && g < 120 // Saturated warm red after saturation boost
         }
 
         assertTrue("Palette must contain the dominant navy tone", hasNavyTone)
