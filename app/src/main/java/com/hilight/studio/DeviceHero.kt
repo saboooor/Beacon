@@ -467,8 +467,149 @@ fun LedStrip(
 }
 
 /**
- * Standalone HiLight disc preview, showing the 8 addressable LEDs behind the diffused circular
- * lens window with authentic glow and bloom.
+ * Accurately renders the 8 physical addressable LEDs arranged on the hardware ring.
+ *
+ * Each of the 8 LEDs is rendered as a distinct physical emitter element with its own
+ * core diode, hot center highlight, and radiant bloom.
+ */
+private fun DrawScope.drawHiLight8LedRing(
+    colors: IntArray,
+    center: Offset,
+    outerRadius: Float,
+    bloom: Float,
+) {
+    val n = colors.size.coerceAtLeast(LED_COUNT)
+
+    // Outer subtle ambient glow across the module when active
+    if (bloom > 0.01f) {
+        var totalLum = 0f
+        var rSum = 0f
+        var gSum = 0f
+        var bSum = 0f
+        for (i in 0 until minOf(n, colors.size)) {
+            val c = Color(colors[i])
+            val l = (c.red + c.green + c.blue) / 3f
+            totalLum += l
+            rSum += c.red * l
+            gSum += c.green * l
+            bSum += c.blue * l
+        }
+        if (totalLum > 0.02f) {
+            val avgColor = Color(rSum / totalLum, gSum / totalLum, bSum / totalLum)
+            val avgLum = (totalLum / n).coerceIn(0f, 1f)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(avgColor.copy(alpha = 0.28f * bloom * avgLum), Color.Transparent),
+                    center = center,
+                    radius = outerRadius * 1.35f,
+                ),
+                radius = outerRadius * 1.35f,
+                center = center,
+            )
+        }
+    }
+
+    // 1. Outer camera visor bezel & glass housing
+    drawCircle(Color(0xFF0C0F14), radius = outerRadius, center = center)
+    drawCircle(
+        LensRing.copy(alpha = 0.65f),
+        radius = outerRadius,
+        center = center,
+        style = Stroke(width = maxOf(1.2f, outerRadius * 0.06f)),
+    )
+
+    // Subtle recessed ring channel where the 8 LEDs sit
+    drawCircle(Color(0xFF13171E), radius = outerRadius * 0.88f, center = center)
+
+    // Center optical sensor hub
+    val hubRadius = outerRadius * 0.34f
+    drawCircle(Color(0xFF080A0D), radius = hubRadius, center = center)
+    drawCircle(
+        LensRing.copy(alpha = 0.45f),
+        radius = hubRadius,
+        center = center,
+        style = Stroke(width = maxOf(1.0f, outerRadius * 0.04f)),
+    )
+    drawCircle(
+        Color(0xFF181C23),
+        radius = hubRadius * 0.55f,
+        center = center,
+    )
+
+    // 2. The 8 distinct LEDs
+    val ringRadius = outerRadius * 0.61f
+    val ledRadius = outerRadius * 0.16f
+
+    for (i in 0 until n) {
+        val angle = (i.toFloat() / n) * 2f * Math.PI.toFloat() - (Math.PI.toFloat() / 2f)
+        val pos = Offset(
+            center.x + cos(angle) * ringRadius,
+            center.y + sin(angle) * ringRadius,
+        )
+
+        val rawColor = if (i < colors.size) Color(colors[i]) else Color.Black
+        val lum = ((rawColor.red + rawColor.green + rawColor.blue) / 3f).coerceIn(0f, 1f)
+        val isLit = bloom > 0.01f && lum > 0.02f
+
+        if (isLit) {
+            // Radiant glow per LED
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(rawColor.copy(alpha = 0.60f * bloom * lum), Color.Transparent),
+                    center = pos,
+                    radius = ledRadius * 3.2f,
+                ),
+                radius = ledRadius * 3.2f,
+                center = pos,
+            )
+
+            // LED socket
+            drawCircle(Color(0xFF0F1217), radius = ledRadius * 1.18f, center = pos)
+
+            // Illuminated LED diode
+            drawCircle(
+                rawColor.copy(alpha = (0.88f + 0.12f * lum).coerceIn(0f, 1f)),
+                radius = ledRadius,
+                center = pos,
+            )
+
+            // Intense hot specular core
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(Color.White.copy(alpha = 0.75f * bloom * lum), rawColor.copy(alpha = 0f)),
+                    center = pos,
+                    radius = ledRadius * 0.60f,
+                ),
+                radius = ledRadius * 0.60f,
+                center = pos,
+            )
+
+            // Fine illuminated rim
+            drawCircle(
+                rawColor.copy(alpha = 0.70f * bloom),
+                radius = ledRadius,
+                center = pos,
+                style = Stroke(width = maxOf(1f, ledRadius * 0.22f)),
+            )
+        } else {
+            // Unlit LED diode socket and phosphor
+            drawCircle(Color(0xFF0A0C10), radius = ledRadius * 1.18f, center = pos)
+            drawCircle(Color(0xFF1A1F27), radius = ledRadius, center = pos)
+            drawCircle(
+                Color(0xFF2B323E),
+                radius = ledRadius,
+                center = pos,
+                style = Stroke(width = maxOf(1f, ledRadius * 0.20f)),
+            )
+            // Tiny inactive phosphor core
+            drawCircle(Color(0xFF14171E), radius = ledRadius * 0.45f, center = pos)
+        }
+    }
+}
+
+/**
+ * Standalone HiLight preview accurately rendering the 8 physical addressable LEDs in a ring
+ * with individual emitter diodes, specular highlights, and active bloom.
  */
 @Composable
 fun HiLightDiscPreview(
@@ -491,8 +632,8 @@ fun HiLightDiscPreview(
         modifier = modifier.semantics { contentDescription = label },
     ) {
         val center = Offset(size.width / 2f, size.height / 2f)
-        val radius = minOf(size.width, size.height) * 0.36f
-        drawHiLightDisc(frame, center, radius, bloom)
+        val outerRadius = minOf(size.width, size.height) * 0.42f
+        drawHiLight8LedRing(frame, center, outerRadius, bloom)
     }
 }
 
