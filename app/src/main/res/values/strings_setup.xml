@@ -154,7 +154,7 @@
     <!-- The self test posts a real notification from this app, so the channel name is seen in the
          system's own notification settings as well. -->
     <string name="setup_test_title">End-to-end test</string>
-    <string name="setup_test_body">Posts a notification from this app. Add a rule for HiLight Studio first.</string>
+    <string name="setup_test_body">Posts a notification from this app. Add a rule for Beacon first.</string>
     <string name="setup_test_button">Post test notification</string>
     <string name="setup_test_delay_button">Post in 5 seconds</string>
     <string name="setup_test_countdown">Posting in %1$ds…</string>

@@ -249,8 +249,8 @@
     <!-- The self test. The channel name is also seen in the system's notification settings. -->
     <!-- "End-to-end test" -->
     <string name="setup_test_title">通し動作テスト</string>
-    <!-- "Posts a notification from this app. Add a rule for HiLight Studio first." -->
-    <string name="setup_test_body">このアプリから通知を送信します。先に HiLight Studio のルールを追加してください。</string>
+    <!-- "Posts a notification from this app. Add a rule for Beacon first." -->
+    <string name="setup_test_body">このアプリから通知を送信します。先に Beacon のルールを追加してください。</string>
     <!-- "Post test notification" -->
     <string name="setup_test_button">テスト通知を送信</string>
     <!-- "Post in 5 seconds" -->
