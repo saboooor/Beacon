@@ -14,14 +14,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.CallMerge
+import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Casino
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Flare
 import androidx.compose.material.icons.rounded.FlashOn
+import androidx.compose.material.icons.rounded.Gradient
+import androidx.compose.material.icons.rounded.Grain
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Nightlight
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Radar
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -98,6 +108,7 @@ private fun tileAccent(pattern: Pattern, color: Int): Color = when {
 }
 
 /** Home surface: the phone itself, the master switch, and one-tap effects. */
+/** Home surface: one-tap effects to try out every pattern. */
 @Composable
 fun LiveScreen(store: Store) {
     val launchPreview = rememberPreviewLauncher(store)
@@ -125,6 +136,18 @@ fun LiveScreen(store: Store) {
                     previewLook != null -> stringResource(
                         R.string.live_status_testing,
                         stringResource(shown.pattern.labelRes),
+    if (suppression != null || status.resting || !status.alive) {
+        PixelCard(tone = 1) {
+            suppression?.let {
+                Caption(
+                    stringResource(
+                        when (it) {
+                            Suppression.QUIET_HOURS -> R.string.live_suppressed_quiet_hours
+                            Suppression.LOW_BATTERY -> R.string.live_suppressed_low_battery
+                            Suppression.POWER_SAVER -> R.string.live_suppressed_power_saver
+                            Suppression.SCREEN_ON -> R.string.live_suppressed_screen_on
+                            Suppression.NOT_FACE_DOWN -> R.string.live_suppressed_not_face_down
+                        }
                     )
                     enabled -> stringResource(
                         R.string.live_status_on,
@@ -148,6 +171,7 @@ fun LiveScreen(store: Store) {
                 !status.alive -> stringResource(R.string.live_hint_no_renderer)
                 enabled -> stringResource(R.string.live_hint_look)
                 else -> stringResource(R.string.live_hint_take_over)
+                )
             }
         )
     }
@@ -174,13 +198,22 @@ fun LiveScreen(store: Store) {
                     }
                 )
             )
+            if (!status.alive) {
+                Caption(stringResource(R.string.live_hint_no_renderer))
+            } else if (status.resting) {
+                Caption(stringResource(R.string.live_safety_resting))
+            }
         }
+    } else if (status.alive && enabled) {
         AnimatedVisibility(
             visible = status.alive && enabled && suppression == null,
             enter = fadeIn(tween(200)) + expandVertically(tween(240)),
             exit = fadeOut(tween(120)) + shrinkVertically(tween(200)),
         ) {
             SafetyState(status)
+            PixelCard(tone = 1) {
+                SafetyState(status)
+            }
         }
     }
 
@@ -196,6 +229,16 @@ fun LiveScreen(store: Store) {
         Triple(Pattern.BREATHE.shortLabelRes, Icons.Rounded.Nightlight, Pattern.BREATHE to 0xFF7C4DFF.toInt()),
         Triple(Pattern.WAVE.shortLabelRes, Icons.Rounded.Waves, Pattern.WAVE to 0xFF00E676.toInt()),
         Triple(Pattern.RADAR.shortLabelRes, Icons.Rounded.Radar, Pattern.RADAR to 0xFF00E5FF.toInt()),
+        Triple(Pattern.BOUNCE.shortLabelRes, Icons.Rounded.SwapHoriz, Pattern.BOUNCE to 0xFFFF9100.toInt()),
+        Triple(Pattern.CONVERGE.shortLabelRes, Icons.AutoMirrored.Rounded.CallMerge, Pattern.CONVERGE to 0xFFE040FB.toInt()),
+        Triple(Pattern.GLITCH.shortLabelRes, Icons.Rounded.Grain, Pattern.GLITCH to 0xFF00E5FF.toInt()),
+        Triple(Pattern.METER.shortLabelRes, Icons.Rounded.Speed, Pattern.METER to 0xFF00E676.toInt()),
+        Triple(Pattern.BLINK.shortLabelRes, Icons.Rounded.Lightbulb, Pattern.BLINK to 0xFFFFD600.toInt()),
+        Triple(Pattern.CHASE.shortLabelRes, Icons.AutoMirrored.Rounded.DirectionsRun, Pattern.CHASE to 0xFF00B0FF.toInt()),
+        Triple(Pattern.SOLID.shortLabelRes, Icons.Rounded.LightMode, Pattern.SOLID to 0xFFFFFFFF.toInt()),
+        Triple(Pattern.GRADIENT.shortLabelRes, Icons.Rounded.Gradient, Pattern.GRADIENT to 0xFF7C4DFF.toInt()),
+        Triple(Pattern.BATTERY.shortLabelRes, Icons.Rounded.BatteryChargingFull, Pattern.BATTERY to 0xFF00E676.toInt()),
+        Triple(Pattern.CUSTOM.shortLabelRes, Icons.Rounded.Palette, Pattern.CUSTOM to 0xFF7C4DFF.toInt()),
     )
 
     PixelCard {
@@ -215,6 +258,16 @@ fun LiveScreen(store: Store) {
                             enabled = enabled && status.alive,
                             modifier = Modifier.weight(1f),
                         ) { launchPreview(spec.first, spec.second, 1200, 1f, 4_000) }
+                        ) {
+                            if (spec.first == Pattern.CUSTOM) {
+                                launchPreview(spec.first, spec.second, 1200, 1f, 4_000, ambient.copy(pattern = Pattern.CUSTOM))
+                            } else {
+                                launchPreview(spec.first, spec.second, 1200, 1f, 4_000, null)
+                            }
+                        }
+                    }
+                    repeat(3 - row.size) {
+                        Spacer(Modifier.weight(1f))
                     }
                 }
             }

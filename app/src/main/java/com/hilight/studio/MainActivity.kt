@@ -34,9 +34,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -131,8 +133,23 @@ private fun App(store: Store) {
         }
     }
 
+    val profile = rememberDeviceProfile()
+    val modelName = profile.labelRes?.let { stringResource(it) } ?: profile.label
+
     val shown = previewLook ?: ambient
     val activeLight = (enabled || previewLook != null) && status.alive
+    val statusText = when {
+        !profile.hasHiLight -> stringResource(R.string.live_status_unavailable)
+        previewLook != null -> stringResource(
+            R.string.live_status_testing,
+            stringResource(shown.pattern.labelRes),
+        )
+        enabled -> stringResource(
+            R.string.live_status_on,
+            stringResource(ambient.pattern.labelRes),
+        )
+        else -> stringResource(R.string.live_status_system)
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -141,14 +158,42 @@ private fun App(store: Store) {
                 modifier = Modifier.padding(vertical = 4.dp),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         HiLightDiscPreview(
                             pattern = if (activeLight) shown.pattern else Pattern.OFF,
                             cfg = shown,
                             active = activeLight,
                             modifier = Modifier.size(44.dp),
+                            modifier = Modifier.size(40.dp),
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    stringResource(R.string.app_name),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    modelName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            Text(
+                                statusText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (enabled || previewLook != null) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -165,6 +210,12 @@ private fun App(store: Store) {
                         },
                         ok = rendererConnected,
                         modifier = Modifier.padding(end = 16.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = { store.setEnabled(it) },
+                        modifier = Modifier.padding(end = 12.dp),
                     )
                 },
                 scrollBehavior = scrollBehavior,
