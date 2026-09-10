@@ -11,12 +11,6 @@
 -->
 <resources>
 
-    <!-- Compact project attribution at the top of Settings. -->
-    <!-- "Made with passion and care by Dhananjay Tech" -->
-    <string name="setup_attribution">Dhananjay Tech が情熱と心を込めて作りました</string>
-    <!-- "Opens Dhananjay Tech on X" -->
-    <string name="setup_attribution_external">X で Dhananjay Tech を開きます</string>
-
     <!-- Auto-off -->
     <!-- "Auto-off" -->
     <string name="setup_auto_off_title">自動オフ</string>
@@ -81,6 +75,7 @@
     <string name="setup_charging_breathe">充電中の LED を明滅</string>
     <!-- "Gently pulses only the leading LED to show active charging." -->
     <string name="setup_charging_breathe_hint">充電の進捗を示す先頭の LED のみをゆっくり明滅させます。</string>
+    <string name="setup_charging_reset_colors">デフォルトの色に戻す</string>
 
     <!-- "%1$d%%" -->
     <string name="setup_percent">%1$d%%</string>

@@ -51,8 +51,7 @@ enum class Pattern(
     CONVERGE("converge", R.string.pattern_converge, cycleMeaningRes = R.string.cycle_converge),
     GLITCH("glitch", R.string.pattern_glitch, cycleMeaningRes = R.string.cycle_glitch),
     RANDOM("random", R.string.pattern_random, usesSpeed = false),
-    CUSTOM("custom", R.string.pattern_custom, usesSpeed = false),
-    BATTERY("battery", R.string.setup_charging_title, usesSpeed = true, cycleMeaningRes = R.string.cycle_breathe);
+    CUSTOM("custom", R.string.pattern_custom, usesSpeed = false);
 
     /** The name to show where a third of a row is all there is. */
     @get:StringRes
@@ -93,6 +92,7 @@ data class Ambient(
     val randomSmooth: Boolean = true,
     val randomSaturation: Float = 1f,
     val rotateMs: Int = 0,
+    val rotateFade: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("mode", pattern.key)
@@ -104,6 +104,7 @@ data class Ambient(
         put("randomSmooth", randomSmooth)
         put("randomSaturation", randomSaturation.toDouble())
         put("rotateMs", rotateMs)
+        put("rotateFade", rotateFade)
         when (pattern) {
             Pattern.CUSTOM -> put("colors", JSONArray().also { a -> perLed.forEach { a.put(it.toUInt().toLong()) } })
             Pattern.GRADIENT -> put(
@@ -130,6 +131,7 @@ data class Ambient(
             randomSmooth = o.optBoolean("randomSmooth", true),
             randomSaturation = o.optDouble("randomSaturation", 1.0).toFloat(),
             rotateMs = o.optInt("rotateMs", 0),
+            rotateFade = o.optBoolean("rotateFade", false),
         )
     }
 
@@ -147,6 +149,7 @@ data class Ambient(
         put("randomSmooth", randomSmooth)
         put("randomSaturation", randomSaturation.toDouble())
         put("rotateMs", rotateMs)
+        put("rotateFade", rotateFade)
     }
 }
 
@@ -295,6 +298,14 @@ data class PrivacyRule(
 ) {
     val id: String get() = "${activity.key}|$pkg"
     val isCatchAll: Boolean get() = pkg == AppRule.ANY_APP
+
+    fun effectiveLook(): Ambient = Ambient(
+        pattern = pattern,
+        color = color,
+        secondColor = secondColor,
+        speedMs = speedMs,
+        brightness = brightness,
+    )
 
     fun toPrefsJson(): JSONObject = JSONObject().apply {
         put("activity", activity.key)

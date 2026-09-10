@@ -44,6 +44,7 @@
     <string name="style_led_number">LED %1$d</string>
     <!-- "Rotate around array" -->
     <string name="style_rotate_around_array">LED アレイを回転</string>
+    <string name="style_rotate_fade">色の間をフェード</string>
     <!-- "off" — the rotate slider's badge when rotation is turned right down -->
     <string name="style_rotate_off">オフ</string>
     <!-- "Wallpaper" — one of three equal-width buttons, so the two-character native word -->

@@ -59,6 +59,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
@@ -101,8 +102,9 @@ fun PixelCard(
         base = base
             .pressSquash(pressed)
             .clip(shape)
+            .background(color)
             .clickable(interactionSource = interaction, indication = ripple(), onClick = onClick)
-        Box(base.background(color)) {
+        Box(base) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 content()
             }
@@ -179,6 +181,51 @@ fun BreathingDot(color: Color, animate: Boolean, size: Int = 8) {
     )
 }
 
+/** Quick-Settings style tile: big rounded square with custom content over label, springy. */
+@Composable
+fun PixelTile(
+    label: String,
+    accent: Color,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val haptics = LocalHapticFeedback.current
+    val container by animateColorAsState(
+        if (enabled) accent.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceContainerHigh,
+        label = "tileBg",
+    )
+    Row(
+        modifier
+            .pressSquash(pressed, min = 0.94f)
+            // clip first: an unclipped ripple paints a rectangle outside the tile's rounded shape
+            .clip(MaterialTheme.shapes.medium)
+            .background(container)
+            .clickable(interactionSource = interaction, indication = ripple()) {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            }
+            .padding(vertical = 10.dp, horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        content()
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            textAlign = TextAlign.Start,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+            color = if (enabled) MaterialTheme.colorScheme.onSurface
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 /** Quick-Settings style tile: big rounded square, icon over label, springy. */
 @Composable
 fun PixelTile(
@@ -189,38 +236,17 @@ fun PixelTile(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val haptics = LocalHapticFeedback.current
-    val container by animateColorAsState(
-        if (enabled) accent.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceContainerHigh,
-        label = "tileBg",
-    )
-    Column(
-        modifier
-            .pressSquash(pressed, min = 0.94f)
-            // clip first: an unclipped ripple paints a rectangle outside the tile's rounded shape
-            .clip(MaterialTheme.shapes.medium)
-            .background(container)
-            .clickable(interactionSource = interaction, indication = ripple()) {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                onClick()
-            }
-            .padding(vertical = 14.dp, horizontal = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+    PixelTile(
+        label = label,
+        accent = accent,
+        enabled = enabled,
+        modifier = modifier,
+        onClick = onClick,
     ) {
         Icon(
             icon,
             contentDescription = null,
             tint = if (enabled) accent else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.labelLarge,
-            textAlign = TextAlign.Center,
-            color = if (enabled) MaterialTheme.colorScheme.onSurface
-            else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

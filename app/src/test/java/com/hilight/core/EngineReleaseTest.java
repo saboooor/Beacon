@@ -837,6 +837,26 @@ public final class EngineReleaseTest {
         assertTrue(rig.lights.isSessionOpen());
     }
 
+    @Test
+    public void safetyGuardsDisabledDisablesAutoOff() throws Exception {
+        Rig rig = new Rig();
+        rig.finishStartupCycle();
+        Engine engine = rig.newEngine();
+        long armedAt = 1_000;
+        rig.rendererClock.now = armedAt;
+        engine.setState("{\"enabled\":true,\"arm\":true,\"ambientTimeoutMs\":1000,\"safetyGuardsDisabled\":true,"
+                + "\"ambient\":{\"mode\":\"solid\",\"color\":4294901760}}");
+
+        // Advance 100 seconds into the future — well past the 1000 ms ambientTimeoutMs
+        rig.tick(engine, 100_000, armedAt + 100_000);
+
+        JSONObject status = new JSONObject(engine.status());
+        assertFalse(status.getBoolean("safetyGuards"));
+        assertFalse(status.getBoolean("ambientHeld"));
+        assertEquals(-1, status.getLong("ambientRemainingMs"));
+        assertTrue(rig.lights.isSessionOpen());
+    }
+
     private static final class Rig {
         final FakeIo io = new FakeIo();
         final FakeClock clock = new FakeClock();

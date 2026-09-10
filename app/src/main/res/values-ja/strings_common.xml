@@ -154,6 +154,8 @@
     <string name="common_save">保存</string>
     <!-- "Close" -->
     <string name="common_close">閉じる</string>
+    <!-- "Setup" -->
+    <string name="common_setup">設定</string>
     <!-- "Edit" -->
     <string name="common_edit">編集</string>
     <!-- "Test" -->

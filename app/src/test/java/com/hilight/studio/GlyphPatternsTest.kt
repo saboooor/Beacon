@@ -2,6 +2,7 @@ package com.hilight.studio
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -103,5 +104,52 @@ class GlyphPatternsTest {
             assertTrue(pat.usesSpeed)
             assertTrue(pat.cycleMeaningRes != null)
         }
+    }
+
+    @Test
+    fun randomPatternProducesAccuratePreviewAndNotRainbow() {
+        val rainbowAmbient = Ambient(pattern = Pattern.RAINBOW, speedMs = 1000, rainbowSpread = true)
+        val randomAmbient = Ambient(
+            pattern = Pattern.RANDOM,
+            randomIntervalMs = 500,
+            randomPerLed = true,
+            randomSmooth = true,
+        )
+
+        val rainbowFrame = Renderer.frame(Pattern.RAINBOW, 0L, rainbowAmbient)
+        val randomFrame = Renderer.frame(Pattern.RANDOM, 0L, randomAmbient)
+
+        // Ensure random frame is visible and not identical to a rainbow wheel
+        assertTrue(isFrameVisible(randomFrame))
+        var matchesRainbow = true
+        for (i in 0 until 8) {
+            if (rainbowFrame[i] != randomFrame[i]) {
+                matchesRainbow = false
+                break
+            }
+        }
+        assertFalse("Random frame should not match rainbow frame", matchesRainbow)
+
+        // Verify randomPerLed = false makes all LEDs uniform
+        val uniformRandom = randomAmbient.copy(randomPerLed = false)
+        val uniformFrame = Renderer.frame(Pattern.RANDOM, 0L, uniformRandom)
+        val firstColor = uniformFrame[0]
+        for (i in 1 until 8) {
+            assertEquals("All LEDs should share same color when perLed is false", firstColor, uniformFrame[i])
+        }
+
+        // Verify randomSmooth fades over the interval
+        val frameStart = Renderer.frame(Pattern.RANDOM, 0L, randomAmbient)
+        val frameMid = Renderer.frame(Pattern.RANDOM, 250L, randomAmbient)
+        val frameEnd = Renderer.frame(Pattern.RANDOM, 500L, randomAmbient)
+
+        var midDiffersFromStart = false
+        var midDiffersFromEnd = false
+        for (i in 0 until 8) {
+            if (frameMid[i] != frameStart[i]) midDiffersFromStart = true
+            if (frameMid[i] != frameEnd[i]) midDiffersFromEnd = true
+        }
+        assertTrue("Midpoint of transition should differ from start", midDiffersFromStart)
+        assertTrue("Midpoint of transition should differ from next step", midDiffersFromEnd)
     }
 }

@@ -67,4 +67,14 @@ class ChargingBatteryIndicatorTest {
             assertEquals(Store.batteryGradientColor(i, 8), full[i])
         }
     }
+
+    @Test
+    fun `computeChargingPerLed with custom colors uses custom colors`() {
+        val customColors = List(LED_COUNT) { 0xFF0000FF.toInt() + it }
+        val fifty = Store.computeChargingPerLed(50, customColors)
+        assertEquals(4, fifty.count { it != 0 })
+        assertEquals(customColors[0], fifty[0])
+        assertEquals(customColors[3], fifty[3])
+        assertEquals(0, fifty[4])
+    }
 }

@@ -13,6 +13,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,13 +24,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
-import androidx.compose.material.icons.rounded.DisplaySettings
-import androidx.compose.material.icons.rounded.Lightbulb
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -36,13 +41,17 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -100,10 +109,43 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class Tab(@StringRes val labelRes: Int, val icon: ImageVector) {
-    LIVE(R.string.tab_live, Icons.Rounded.Lightbulb),
     AMBIENT(R.string.tab_style, Icons.Rounded.Tune),
     APPS(R.string.tab_apps, Icons.Rounded.Apps),
-    SETUP(R.string.tab_setup, Icons.Rounded.DisplaySettings),
+    SETUP(R.string.tab_setup, Icons.Rounded.Settings),
+}
+
+@Composable
+internal fun SafetyDetails(status: HelperStatus) {
+    var elapsedMs by remember(status.ambientRemainingMs, status.ambientHeld) { mutableLongStateOf(0L) }
+    LaunchedEffect(status.ambientRemainingMs, status.ambientHeld) {
+        while (true) {
+            delay(500)
+            elapsedMs += 500
+        }
+    }
+    val remaining = (status.ambientRemainingMs - elapsedMs).coerceAtLeast(0)
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        val safetyLine = when {
+            status.resting -> stringResource(R.string.live_safety_resting)
+            !status.safetyGuards -> stringResource(R.string.live_safety_disabled)
+            status.ambientHeld || remaining == 0L -> stringResource(R.string.live_safety_timed_out)
+            else -> stringResource(R.string.live_safety_countdown, remaining / 1000, status.dutyPct)
+        }
+        Text(safetyLine, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            stringResource(
+                R.string.live_renderer_pid,
+                status.pid,
+                stringResource(
+                    if (status.sessionOpen) R.string.live_session_open
+                    else R.string.live_session_closed
+                ),
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,15 +159,18 @@ private fun App(store: Store) {
     val enabled by store.enabled.collectAsStateWithLifecycle()
     val ambient by store.ambient.collectAsStateWithLifecycle()
     val previewLook by store.previewLook.collectAsStateWithLifecycle()
+    val suppression by store.suppression.collectAsStateWithLifecycle()
     val haptics = LocalHapticFeedback.current
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+    var showStatusDialog by remember { mutableStateOf(false) }
+    var showConnectionDialog by remember { mutableStateOf(false) }
 
     // Tied to the lifecycle, not just the composition: a plain LaunchedEffect keeps its coroutine
     // running once the activity stops, so this polled the helper over binder and file I/O every 1.5s
     // in the background, for a screen nobody was looking at.
     val owner = LocalLifecycleOwner.current
     LaunchedEffect(owner) {
-        owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
                 store.refreshStatus()
                 delay(1500)
@@ -144,11 +189,93 @@ private fun App(store: Store) {
             R.string.live_status_testing,
             stringResource(shown.pattern.labelRes),
         )
-        enabled -> stringResource(
+        !status.alive -> stringResource(R.string.tile_no_renderer)
+        !enabled -> stringResource(R.string.live_status_system)
+        status.resting -> stringResource(R.string.tile_resting)
+        suppression != null -> stringResource(suppression!!.shortRes)
+        status.ambientHeld -> stringResource(R.string.tile_timed_out)
+        else -> stringResource(
             R.string.live_status_on,
             stringResource(ambient.pattern.labelRes),
         )
-        else -> stringResource(R.string.live_status_system)
+    }
+
+    if (showConnectionDialog) {
+        ConnectionSetupDialog(
+            store = store,
+            onDismiss = { showConnectionDialog = false },
+        )
+    }
+
+    if (showStatusDialog) {
+        AlertDialog(
+            onDismissRequest = { showStatusDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    HiLightDiscPreview(
+                        pattern = if (activeLight) shown.pattern else Pattern.OFF,
+                        cfg = shown,
+                        active = activeLight,
+                        modifier = Modifier.size(28.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.app_name))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        modelName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        statusText,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (enabled || previewLook != null) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    suppression?.let {
+                        Text(
+                            stringResource(
+                                when (it) {
+                                    Suppression.QUIET_HOURS -> R.string.live_suppressed_quiet_hours
+                                    Suppression.LOW_BATTERY -> R.string.live_suppressed_low_battery
+                                    Suppression.POWER_SAVER -> R.string.live_suppressed_power_saver
+                                    Suppression.SCREEN_ON -> R.string.live_suppressed_screen_on
+                                    Suppression.NOT_FACE_DOWN -> R.string.live_suppressed_not_face_down
+                                }
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    if (!profile.hasHiLight) {
+                        Text(
+                            stringResource(R.string.live_hint_no_array, modelName),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else if (!status.alive) {
+                        Text(
+                            stringResource(R.string.live_hint_no_renderer),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else if (status.resting) {
+                        Text(
+                            stringResource(R.string.live_safety_resting),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else if (enabled) {
+                        SafetyDetails(status)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showStatusDialog = false }) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            },
+        )
     }
 
     Scaffold(
@@ -157,19 +284,20 @@ private fun App(store: Store) {
             TopAppBar(
                 modifier = Modifier.padding(vertical = 4.dp),
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { showStatusDialog = true }
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
                     ) {
                         HiLightDiscPreview(
                             pattern = if (activeLight) shown.pattern else Pattern.OFF,
                             cfg = shown,
                             active = activeLight,
-                            modifier = Modifier.size(44.dp),
                             modifier = Modifier.size(40.dp),
                         )
                         Spacer(Modifier.width(10.dp))
-                        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
                         Column(modifier = Modifier.weight(1f, fill = false)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
@@ -198,19 +326,25 @@ private fun App(store: Store) {
                 },
                 actions = {
                     val rendererConnected = store.isRendererConnectedForUi(status)
-                    LivePill(
-                        text = if (rendererConnected) {
-                            stringResource(
+                    if (rendererConnected) {
+                        LivePill(
+                            text = stringResource(
                                 R.string.main_connected_pill,
                                 status.ledCount,
                                 stringResource(active.labelRes),
-                            )
-                        } else {
-                            stringResource(R.string.main_not_connected)
-                        },
-                        ok = rendererConnected,
-                        modifier = Modifier.padding(end = 16.dp),
-                    )
+                            ),
+                            ok = true,
+                            modifier = Modifier.clickable { showConnectionDialog = true },
+                        )
+                    } else {
+                        FilledTonalButton(
+                            onClick = { showConnectionDialog = true },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            modifier = Modifier.height(32.dp),
+                        ) {
+                            ButtonLabel(stringResource(R.string.common_setup))
+                        }
+                    }
                     Spacer(Modifier.width(8.dp))
                     Switch(
                         checked = enabled,
@@ -258,7 +392,6 @@ private fun App(store: Store) {
                     .verticalScroll(rememberScrollState()),
             ) {
                 when (current) {
-                    Tab.LIVE -> LiveScreen(store)
                     Tab.AMBIENT -> AmbientScreen(store)
                     Tab.APPS -> AppRulesScreen(store)
                     Tab.SETUP -> SetupScreen(store)

@@ -273,8 +273,6 @@ Leave Latin as-is: HiLight, Shizuku, ADB, LED, JSON, MessagingStyle, shortcutId,
 
 | name | English | Japanese |
 |---|---|---|
-| `setup_attribution` | Made with passion and care by Dhananjay Tech | Dhananjay Tech が情熱と心を込めて作りました |
-| `setup_attribution_external` | Opens Dhananjay Tech on X | X で Dhananjay Tech を開きます |
 | `setup_auto_off_title` | Auto-off | 自動オフ |
 | `setup_auto_off_body` | The always-on look switches itself off after this. App rules still work. | 常時点灯スタイルはこの時間が過ぎると自動でオフになります。アプリ別ルールはそのまま動作します。 |
 | `setup_auto_off_protection` | Hardware protection is always on: brightness eases down after 10s of unbroken light, and the array rests if it has been lit for more than half of the last 10 minutes. | ハードウェア保護は常に有効です。10 秒続けて点灯すると明るさが徐々に下がり、直近 10 分のうち半分以上点灯していた場合は LED アレイが休止します。 |

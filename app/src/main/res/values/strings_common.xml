@@ -16,7 +16,7 @@
     <string name="tab_live">Live</string>
     <string name="tab_style">Style</string>
     <string name="tab_apps">Apps</string>
-    <string name="tab_setup">Setup</string>
+    <string name="tab_setup">Settings</string>
 
     <!-- Patterns -->
     <string name="pattern_off">Off</string>
@@ -101,6 +101,7 @@
     <string name="common_cancel">Cancel</string>
     <string name="common_save">Save</string>
     <string name="common_close">Close</string>
+    <string name="common_setup">Setup</string>
     <string name="common_edit">Edit</string>
     <string name="common_test">Test</string>
     <string name="common_delete">Delete</string>

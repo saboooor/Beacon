@@ -69,7 +69,12 @@ fun PrivacyRulesSection(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Box(Modifier.size(14.dp).background(Color(rule.color), CircleShape))
+                    HiLightDiscPreview(
+                        pattern = rule.pattern,
+                        cfg = rule.effectiveLook(),
+                        active = rule.enabled,
+                        modifier = Modifier.size(42.dp),
+                    )
                     Column {
                         Text(
                             if (rule.activity == PrivacyActivity.MICROPHONE)
@@ -92,18 +97,6 @@ fun PrivacyRulesSection(
                 }
                 Switch(checked = rule.enabled, onCheckedChange = { onToggle(rule) })
             }
-            LedStrip(
-                rule.pattern,
-                Ambient(
-                    pattern = rule.pattern,
-                    color = rule.color,
-                    secondColor = rule.secondColor,
-                    speedMs = rule.speedMs,
-                    brightness = rule.brightness,
-                ),
-                active = rule.enabled,
-                heightDp = 34,
-            )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 FilledTonalButton(onClick = { onEdit(rule) }, modifier = Modifier.weight(1f)) {
                     ButtonLabel(stringResource(R.string.common_edit))
@@ -217,6 +210,12 @@ fun PrivacyRuleEditorDialog(
                     selected = edited.pattern,
                     options = PrivacyRule.selectablePatterns,
                     onSelect = { edited = edited.copy(pattern = it) },
+                    ambient = Ambient(
+                        pattern = edited.pattern,
+                        color = edited.color,
+                        secondColor = edited.secondColor,
+                        speedMs = 1200,
+                    ),
                 )
                 if (edited.pattern == Pattern.GRADIENT) {
                     ColorPicker(

@@ -18,8 +18,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
@@ -165,8 +168,6 @@ fun SetupScreen(store: Store) {
     val faceDownNoticeAccepted by store.faceDownNoticeAccepted.collectAsStateWithLifecycle()
     val faceDownState by store.faceDownState.collectAsStateWithLifecycle()
     val faceDownSensorAvailable = remember(ctx) { ForegroundWatcher.hasFaceDownSensor(ctx) }
-    val keepNotifUntilDismissed by store.keepNotifUntilDismissed.collectAsStateWithLifecycle()
-    val notifAlternateIntervalMs by store.notifAlternateIntervalMs.collectAsStateWithLifecycle()
     val safetyGuardsDisabled by store.safetyGuardsDisabled.collectAsStateWithLifecycle()
     val glowSuppression = suppression?.takeIf {
         it.settingsSection() == SettingsSuppressionSection.GLOW
@@ -175,43 +176,11 @@ fun SetupScreen(store: Store) {
         it.settingsSection() == SettingsSuppressionSection.PAUSE
     }
 
-    var notifAccess by remember { mutableStateOf(hasNotificationAccess(ctx)) }
-    var usageAccess by remember { mutableStateOf(ForegroundWatcher.hasUsageAccess(ctx)) }
-    var inspecting by remember { mutableStateOf(false) }
-    var forgetting by remember { mutableStateOf(false) }
     var checkingForUpdates by remember { mutableStateOf(false) }
     var updateResult by remember { mutableStateOf<UpdateCheckResult?>(null) }
-    var selfTestCountdown by remember { mutableIntStateOf(0) }
-    var selfTestWarning by remember { mutableStateOf<String?>(null) }
     var confirmingFaceDown by remember { mutableStateOf(false) }
     var confirmingSafetyLimits by remember { mutableStateOf(false) }
     val updateScope = rememberCoroutineScope()
-    val conversations by store.conversations.collectAsStateWithLifecycle()
-
-    val testWarning: (Boolean) -> String? = { scheduling ->
-        val reason = store.notificationTestSuppressionReason(scheduling)
-        val notificationManager = ctx.getSystemService(android.app.NotificationManager::class.java)
-        when {
-            !store.enabled.value -> resources.getString(R.string.setup_test_blocked_hilight_off)
-            !hasNotificationAccess(ctx) -> resources.getString(R.string.setup_test_needs_listener)
-            store.respectDnd.value && store.deviceSignals.inDoNotDisturb ->
-                resources.getString(R.string.setup_test_blocked_dnd)
-            !notificationManager.areNotificationsEnabled() ||
-                notificationManager.getNotificationChannel("selftest")?.importance ==
-                android.app.NotificationManager.IMPORTANCE_NONE ->
-                resources.getString(R.string.setup_test_needs_notifications)
-            reason != null -> resources.getString(
-                R.string.test_blocked_by_guard, resources.getString(reason.shortRes),
-            )
-            else -> null
-        }
-    }
-    val postSelfTest: () -> Unit = {
-        val warning = testWarning(false)
-        selfTestWarning = warning
-        if (warning == null) postSelfTestNotification(ctx.applicationContext)
-        else Toast.makeText(ctx.applicationContext, warning, Toast.LENGTH_LONG).show()
-    }
 
     val checkForUpdates: () -> Unit = {
         checkingForUpdates = true
@@ -225,47 +194,33 @@ fun SetupScreen(store: Store) {
 
     LaunchedEffect(Unit) {
         while (true) {
-            notifAccess = hasNotificationAccess(ctx)
-            usageAccess = ForegroundWatcher.hasUsageAccess(ctx)
             store.shizuku.refresh()
             delay(1500)
         }
     }
 
-    val attribution = stringResource(R.string.setup_attribution)
-    val attributionLink = stringResource(R.string.setup_attribution_external)
-    PixelCard(
-        modifier = Modifier.semantics(mergeDescendants = true) {
-            role = Role.Button
-            contentDescription = "$attribution. $attributionLink"
-        },
-        tone = 0,
-        onClick = { openExternalUrl(ctx, DHANANJAY_TECH_URL) },
-    ) {
-        SectionTitle(attribution)
-        Caption(attributionLink)
-    }
-
-    PixelCard(tone = 2) {
-        SectionTitle(
-            stringResource(R.string.setup_auto_off_title),
-            trailing = { Caption(formatDuration(timeoutMs)) },
-        )
-        Caption(stringResource(R.string.setup_auto_off_body))
-        Caption(stringResource(R.string.setup_auto_off_protection))
-        GatedDurationSlider(
-            label = stringResource(R.string.setup_stay_on_for),
-            valueMs = timeoutMs,
-            minMs = 5_000,
-            safeMaxMs = Limits.WARN_ABOVE_MS,
-            extendedMaxMs = Limits.AMBIENT_MAX_MS,
-            unlockLabel = stringResource(R.string.setup_allow_five_minutes),
-            warnFirst = stringResource(R.string.setup_warn_long_title) to
-                stringResource(R.string.setup_warn_long_body),
-            warnSecond = stringResource(R.string.setup_warn_long_confirm_title) to
-                stringResource(R.string.setup_warn_long_confirm_body),
-            onChange = { store.setAmbientTimeoutMs(it) },
-        )
+    if (!safetyGuardsDisabled) {
+        PixelCard(tone = 2) {
+            SectionTitle(
+                stringResource(R.string.setup_auto_off_title),
+                trailing = { Caption(formatDuration(timeoutMs)) },
+            )
+            Caption(stringResource(R.string.setup_auto_off_body))
+            Caption(stringResource(R.string.setup_auto_off_protection))
+            GatedDurationSlider(
+                label = stringResource(R.string.setup_stay_on_for),
+                valueMs = timeoutMs,
+                minMs = 5_000,
+                safeMaxMs = Limits.WARN_ABOVE_MS,
+                extendedMaxMs = Limits.AMBIENT_MAX_MS,
+                unlockLabel = stringResource(R.string.setup_allow_five_minutes),
+                warnFirst = stringResource(R.string.setup_warn_long_title) to
+                    stringResource(R.string.setup_warn_long_body),
+                warnSecond = stringResource(R.string.setup_warn_long_confirm_title) to
+                    stringResource(R.string.setup_warn_long_confirm_body),
+                onChange = { store.setAmbientTimeoutMs(it) },
+            )
+        }
     }
 
     PixelCard {
@@ -389,8 +344,6 @@ fun SetupScreen(store: Store) {
         }
     }
 
-    DeviceSignalsSection(store)
-
     PixelCard(tone = 2) {
         SectionTitle(stringResource(R.string.setup_safety_limits_title))
         ToggleRow(
@@ -444,149 +397,43 @@ fun SetupScreen(store: Store) {
         )
     }
 
-    val rootPresent = rootState in setOf(
-        RootBackend.State.AVAILABLE,
-        RootBackend.State.REQUESTING,
-        RootBackend.State.STARTING,
-        RootBackend.State.RUNNING,
-    )
-    if (rootPresent) {
-        PixelCard(tone = 2) {
-            SectionTitle(
-                stringResource(R.string.setup_root_title),
-                trailing = {
-                    LivePill(
-                        stringResource(
-                            if (rootState == RootBackend.State.RUNNING)
-                                R.string.setup_root_active else R.string.setup_root_available
-                        ),
-                        ok = true,
-                    )
-                },
-            )
-            Caption(
-                stringResource(
-                    when (rootState) {
-                        RootBackend.State.AVAILABLE -> R.string.setup_root_available_body
-                        RootBackend.State.REQUESTING -> R.string.setup_root_requesting_body
-                        RootBackend.State.STARTING -> R.string.setup_root_starting_body
-                        else -> R.string.setup_root_active_body
-                    }
-                )
-            )
-            if (rootState == RootBackend.State.RUNNING && !status.alive) {
-                Caption(stringResource(R.string.setup_led_cleanup_renderer_unavailable))
-                TextButton(onClick = store::retryRoot) {
-                    ButtonLabel(stringResource(R.string.setup_root_retry))
-                }
-            }
-        }
-    } else {
-        PixelCard(tone = 2) {
-            SectionTitle(stringResource(R.string.setup_privileged_title))
-            Caption(stringResource(R.string.setup_privileged_body))
-            val selectable = listOf(Transport.AUTO, Transport.SHIZUKU, Transport.ADB)
-            val transportLabels = selectable.associateWith { stringResource(it.labelRes) }
-            SegmentedSelector(
-                options = selectable,
-                selected = transport.takeIf { it in selectable } ?: Transport.AUTO,
-                label = { transportLabels.getValue(it) },
-                onSelect = { store.setTransport(it) },
-            )
-            if (transport == Transport.AUTO) Caption(stringResource(R.string.setup_transport_auto_note))
-            if (rootState == RootBackend.State.DENIED || rootState == RootBackend.State.ERROR) {
-                Caption(
-                    store.root.errorText()
-                        ?: stringResource(R.string.setup_root_error_body)
-                )
-                TextButton(onClick = store::retryRoot) {
-                    ButtonLabel(stringResource(R.string.setup_root_retry))
-                }
-            }
-        }
-
-        AnimatedContent(
-            targetState = transport,
-            transitionSpec = { fadeIn(tween(180)).togetherWith(fadeOut(tween(120))) },
-            label = "transportCards",
-        ) { t ->
-            Column {
-                if (t != Transport.ADB) ShizukuCard(store, shizukuState)
-                if (t != Transport.SHIZUKU) AdbCard(ctx)
-            }
-        }
+    var showConnectionDialog by remember { mutableStateOf(false) }
+    if (showConnectionDialog) {
+        ConnectionSetupDialog(store = store, onDismiss = { showConnectionDialog = false })
     }
 
-    PixelCard {
-        SectionTitle(
-            stringResource(R.string.setup_notif_title),
-            trailing = {
-                LivePill(
-                    stringResource(
-                        if (notifAccess) R.string.setup_state_granted else R.string.setup_state_needed
-                    ),
-                    notifAccess,
-                )
-            },
-        )
-        Caption(stringResource(R.string.setup_notif_body))
-        FilledTonalButton(
-            onClick = { ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
-        ) { ButtonLabel(stringResource(R.string.setup_open_notif_access)) }
-        Caption(stringResource(R.string.setup_inspector_body))
-        TextButton(onClick = { inspecting = true }) {
-            ButtonLabel(stringResource(R.string.setup_inspector_button))
-        }
-        ToggleRow(
-            stringResource(R.string.setup_notif_until_dismissed),
-            keepNotifUntilDismissed,
+    val rendererConnected = store.isRendererConnectedForUi(status)
+
+    PixelCard(
+        tone = 2,
+        onClick = { showConnectionDialog = true },
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            store.setKeepNotifUntilDismissed(it)
-        }
-        Caption(stringResource(R.string.setup_notif_until_dismissed_hint))
-        if (keepNotifUntilDismissed) {
-            PixelSlider(
-                stringResource(R.string.setup_notif_alternate_interval),
-                notifAlternateIntervalMs.toFloat(),
-                2000f..10000f,
-                { store.setNotifAlternateIntervalMs(it.toInt()) },
-            ) { formatDuration(it.toInt()) }
-            Caption(stringResource(R.string.setup_notif_alternate_hint))
-        }
-        // The chat picker's convenience comes from a list of real contact names held on the device,
-        // so there has to be a way to be rid of it without uninstalling. Rules keep their own copy of
-        // the name they match on, so clearing this list leaves working rules working.
-        Caption(
-            if (conversations.isEmpty()) {
-                stringResource(R.string.setup_chats_none)
-            } else {
-                stringResource(R.string.setup_chats_remembered, conversations.size)
+            Column(Modifier.weight(1f)) {
+                SectionTitle(stringResource(R.string.setup_privileged_title))
+                Caption(stringResource(R.string.setup_privileged_body))
             }
-        )
-        if (conversations.isNotEmpty()) {
-            TextButton(onClick = { forgetting = true }) {
-                ButtonLabel(stringResource(R.string.setup_forget_chats_button))
-            }
+            Spacer(Modifier.width(12.dp))
+            LivePill(
+                text = if (rendererConnected) {
+                    stringResource(
+                        R.string.main_connected_pill,
+                        status.ledCount,
+                        stringResource(active.labelRes),
+                    )
+                } else {
+                    stringResource(R.string.main_not_connected)
+                },
+                ok = rendererConnected,
+            )
         }
     }
 
-    PixelCard {
-        SectionTitle(
-            stringResource(R.string.setup_usage_title),
-            trailing = {
-                LivePill(
-                    stringResource(
-                        if (usageAccess) R.string.setup_state_granted else R.string.setup_state_optional
-                    ),
-                    usageAccess,
-                )
-            },
-        )
-        Caption(stringResource(R.string.setup_usage_body))
-        FilledTonalButton(onClick = { ctx.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }) {
-            ButtonLabel(stringResource(R.string.setup_open_usage_access))
-        }
-    }
+
 
     PixelCard {
         SectionTitle(stringResource(R.string.setup_appearance_title))
@@ -648,55 +495,7 @@ fun SetupScreen(store: Store) {
         }
     }
 
-    PixelCard {
-        SectionTitle(stringResource(R.string.setup_test_title))
-        Caption(stringResource(R.string.setup_test_body))
-        selfTestWarning?.let { Caption(it) }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FilledTonalButton(
-                onClick = postSelfTest,
-                enabled = selfTestCountdown == 0,
-                modifier = Modifier.weight(1f),
-            ) {
-                ButtonLabel(stringResource(R.string.setup_test_button))
-            }
-            TextButton(
-                onClick = {
-                    // State changes synchronously, so a second queued tap cannot launch another job
-                    // before Compose has redrawn the disabled button.
-                    if (selfTestCountdown != 0) return@TextButton
-                    val warning = testWarning(true)
-                    selfTestWarning = warning
-                    if (warning != null) {
-                        Toast.makeText(ctx.applicationContext, warning, Toast.LENGTH_LONG).show()
-                        return@TextButton
-                    }
-                    selfTestCountdown = 5
-                    updateScope.launch {
-                        try {
-                            for (remaining in 5 downTo 1) {
-                                selfTestCountdown = remaining
-                                delay(1_000)
-                            }
-                            postSelfTest()
-                        } finally {
-                            selfTestCountdown = 0
-                        }
-                    }
-                },
-                enabled = selfTestCountdown == 0,
-                modifier = Modifier.weight(1f),
-            ) {
-                ButtonLabel(
-                    if (selfTestCountdown > 0) {
-                        stringResource(R.string.setup_test_countdown, selfTestCountdown)
-                    } else {
-                        stringResource(R.string.setup_test_delay_button)
-                    }
-                )
-            }
-        }
-    }
+
 
     PixelCard(tone = 2) {
         SectionTitle(stringResource(R.string.setup_led_diagnostics_title))
@@ -756,167 +555,20 @@ fun SetupScreen(store: Store) {
         ) { it.toInt().toString() }
     }
 
-    if (inspecting) {
-        NotificationInspectorDialog(store) { inspecting = false }
-    }
 
-    if (forgetting) {
-        AlertDialog(
-            onDismissRequest = { forgetting = false },
-            shape = MaterialTheme.shapes.extraLarge,
-            title = { Text(stringResource(R.string.setup_forget_chats_title)) },
-            text = {
-                Text(
-                    stringResource(R.string.setup_forget_chats_body),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        store.forgetConversations()
-                        forgetting = false
-                    },
-                ) { ButtonLabel(stringResource(R.string.setup_forget_chats_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { forgetting = false }) {
-                    ButtonLabel(stringResource(R.string.setup_forget_chats_dismiss))
-                }
-            },
-        )
-    }
 }
 
-@Composable
-private fun ShizukuCard(store: Store, state: ShizukuBackend.State) {
-    val ctx = LocalContext.current
-    PixelCard {
-        // The card is named after the transport it is about, so it uses that same name.
-        SectionTitle(
-            stringResource(R.string.transport_shizuku),
-            trailing = {
-                val pill = when (state) {
-                    ShizukuBackend.State.CONNECTED -> R.string.shizuku_state_connected
-                    ShizukuBackend.State.CONNECTING -> R.string.shizuku_state_connecting
-                    ShizukuBackend.State.NEEDS_PERMISSION -> R.string.shizuku_state_needs_permission
-                    ShizukuBackend.State.NOT_RUNNING -> R.string.shizuku_state_not_running
-                    ShizukuBackend.State.NOT_INSTALLED -> R.string.shizuku_state_not_installed
-                    ShizukuBackend.State.FAILED -> R.string.shizuku_state_failed
-                }
-                LivePill(stringResource(pill), state == ShizukuBackend.State.CONNECTED)
-            },
-        )
 
-        Caption(stringResource(R.string.shizuku_reattach_note))
-
-        AnimatedContent(
-            targetState = state,
-            transitionSpec = { fadeIn(tween(160)).togetherWith(fadeOut(tween(100))) },
-            label = "shizukuState",
-        ) { s ->
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                when (s) {
-                    ShizukuBackend.State.NOT_INSTALLED -> {
-                        Caption(stringResource(R.string.shizuku_not_installed_body))
-                        Button(onClick = { openShizukuListing(ctx) }) {
-                            ButtonLabel(stringResource(R.string.shizuku_get))
-                        }
-                    }
-
-                    ShizukuBackend.State.NOT_RUNNING -> {
-                        Caption(stringResource(R.string.shizuku_not_running_body))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(onClick = { openShizuku(ctx) }) {
-                                ButtonLabel(stringResource(R.string.shizuku_open))
-                            }
-                            TextButton(onClick = { store.shizuku.refresh() }) {
-                                ButtonLabel(stringResource(R.string.shizuku_check_again))
-                            }
-                        }
-                    }
-
-                    ShizukuBackend.State.NEEDS_PERMISSION -> {
-                        Caption(stringResource(R.string.shizuku_needs_permission_body))
-                        Button(onClick = { store.shizuku.requestPermission() }) {
-                            ButtonLabel(stringResource(R.string.shizuku_request_access))
-                        }
-                    }
-
-                    ShizukuBackend.State.CONNECTED -> {
-                        Caption(stringResource(R.string.shizuku_connected_body))
-                        TextButton(onClick = { store.disconnectShizuku() }) {
-                            ButtonLabel(stringResource(R.string.shizuku_disconnect))
-                        }
-                    }
-
-                    else -> {
-                        // Two kinds of failure text: the ones HiLight diagnoses itself, which are
-                        // translated, and whatever the framework handed back, which is not ours to
-                        // translate and is shown as it came.
-                        Caption(
-                            store.shizuku.errorRes()?.let { stringResource(it) }
-                                ?: store.shizuku.errorText()
-                                ?: stringResource(R.string.shizuku_unreachable)
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(onClick = { store.shizuku.refresh() }) {
-                                ButtonLabel(stringResource(R.string.shizuku_retry))
-                            }
-                            TextButton(onClick = { openShizuku(ctx) }) {
-                                ButtonLabel(stringResource(R.string.shizuku_open))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AdbCard(ctx: Context) {
-    PixelCard {
-        SectionTitle(stringResource(R.string.adb_title))
-        Caption(stringResource(R.string.adb_body))
-        Text(
-            ADB_COMMAND,
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    MaterialTheme.colorScheme.surfaceContainerHighest,
-                    MaterialTheme.shapes.medium,
-                )
-                .padding(14.dp),
-        )
-        Caption(stringResource(R.string.adb_shells_note))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = { copy(ctx, ADB_COMMAND, R.string.adb_copied) }) {
-                ButtonLabel(stringResource(R.string.adb_copy))
-            }
-            TextButton(onClick = { copy(ctx, ADB_COMMAND_CMD, R.string.adb_copied_cmd) }) {
-                ButtonLabel(stringResource(R.string.adb_copy_cmd))
-            }
-        }
-        Caption(stringResource(R.string.adb_verify_note))
-        TextButton(onClick = { share(ctx, ADB_COMMAND) }) {
-            ButtonLabel(stringResource(R.string.adb_send))
-        }
-    }
-}
 
 // The confirmation is a resource rather than a string because these run from a click, outside
 // composition. "hilight" is the clipboard's own label for the clip, not something a reader sees.
-private fun copy(ctx: Context, text: String, @StringRes toast: Int) {
+internal fun copy(ctx: Context, text: String, @StringRes toast: Int) {
     ctx.getSystemService(ClipboardManager::class.java)
         ?.setPrimaryClip(ClipData.newPlainText("hilight", text))
     Toast.makeText(ctx, toast, Toast.LENGTH_SHORT).show()
 }
 
-private fun share(ctx: Context, text: String) {
+internal fun share(ctx: Context, text: String) {
     val send = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, text)
@@ -924,12 +576,12 @@ private fun share(ctx: Context, text: String) {
     ctx.startActivity(Intent.createChooser(send, ctx.getString(R.string.adb_share_title)))
 }
 
-private fun openShizuku(ctx: Context) {
+internal fun openShizuku(ctx: Context) {
     val launch = ctx.packageManager.getLaunchIntentForPackage(ShizukuBackend.SHIZUKU_PKG)
     if (launch != null) ctx.startActivity(launch) else openShizukuListing(ctx)
 }
 
-private fun openShizukuListing(ctx: Context) {
+internal fun openShizukuListing(ctx: Context) {
     val uri = Uri.parse("https://shizuku.rikka.app/")
     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
         .onFailure { Toast.makeText(ctx, R.string.setup_no_browser, Toast.LENGTH_SHORT).show() }
@@ -941,7 +593,7 @@ private fun openExternalUrl(ctx: Context, pageUrl: String) {
         .onFailure { Toast.makeText(ctx, R.string.setup_no_browser, Toast.LENGTH_SHORT).show() }
 }
 
-private fun postSelfTestNotification(ctx: Context) {
+internal fun postSelfTestNotification(ctx: Context) {
     val nm = ctx.getSystemService(android.app.NotificationManager::class.java)
     // The channel id stays a literal — it is a key, not a label. The channel *name* is a label: it
     // appears in the system's own notification settings for this app.
@@ -976,7 +628,7 @@ private fun pickTime(ctx: Context, currentMinutes: Int, onPicked: (Int) -> Unit)
     ).show()
 }
 
-private fun hasNotificationAccess(ctx: Context): Boolean {
+internal fun hasNotificationAccess(ctx: Context): Boolean {
     val flat = Settings.Secure.getString(ctx.contentResolver, "enabled_notification_listeners")
         ?: return false
     return flat.contains(ctx.packageName)

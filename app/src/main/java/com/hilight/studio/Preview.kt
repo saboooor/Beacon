@@ -26,12 +26,49 @@ object Renderer {
         when (pattern) {
             Pattern.OFF -> Unit
             Pattern.SOLID -> for (i in 0 until n) out[i] = base
-            Pattern.CUSTOM -> for (i in 0 until n) out[i] = cfg.perLed[i % cfg.perLed.size]
-            Pattern.GRADIENT -> for (i in 0 until n)
-                out[i] = mix(base, cfg.secondColor, i.toDouble() / (n - 1))
+            Pattern.CUSTOM -> {
+                val rotateMs = cfg.rotateMs.toLong()
+                val rotateFade = cfg.rotateFade
+                if (rotateMs > 50) {
+                    if (rotateFade) {
+                        val pos = (t.toDouble() / rotateMs) % n
+                        val s = floor(pos).toInt()
+                        val frac = pos - s
+                        for (i in 0 until n) {
+                            val idx1 = ((i + s) % n) % cfg.perLed.size
+                            val idx2 = ((i + s + 1) % n) % cfg.perLed.size
+                            out[i] = mix(cfg.perLed[idx1], cfg.perLed[idx2], frac)
+                        }
+                    } else {
+                        val shift = ((t / rotateMs) % n).toInt()
+                        for (i in 0 until n) out[i] = cfg.perLed[((i + shift) % n) % cfg.perLed.size]
+                    }
+                } else {
+                    for (i in 0 until n) out[i] = cfg.perLed[i % cfg.perLed.size]
+                }
+            }
 
-            Pattern.BATTERY -> {
-                for (i in 0 until n) out[i] = Store.batteryGradientColor(i, n)
+            Pattern.GRADIENT -> {
+                val rotateMs = cfg.rotateMs.toLong()
+                val rotateFade = cfg.rotateFade
+                val grad = IntArray(n) { i -> mix(base, cfg.secondColor, i.toDouble() / (n - 1)) }
+                if (rotateMs > 50) {
+                    if (rotateFade) {
+                        val pos = (t.toDouble() / rotateMs) % n
+                        val s = floor(pos).toInt()
+                        val frac = pos - s
+                        for (i in 0 until n) {
+                            val idx1 = (i + s) % n
+                            val idx2 = (i + s + 1) % n
+                            out[i] = mix(grad[idx1], grad[idx2], frac)
+                        }
+                    } else {
+                        val shift = ((t / rotateMs) % n).toInt()
+                        for (i in 0 until n) out[i] = grad[(i + shift) % n]
+                    }
+                } else {
+                    grad.copyInto(out)
+                }
             }
 
             Pattern.BREATHE -> {
@@ -173,11 +210,21 @@ object Renderer {
             }
 
             Pattern.RANDOM -> {
-                // deterministic stand-in so the preview animates without flickering randomly
-                val step = t / max(120, cfg.randomIntervalMs).toLong()
+                val interval = max(120L, cfg.randomIntervalMs.toLong())
+                val step = if (t >= 0) t / interval else (t - interval + 1) / interval
+                val frac = ((t % interval) + interval) % interval
+                val k = if (cfg.randomSmooth) (frac.toDouble() / interval).coerceIn(0.0, 1.0) else 0.0
+
                 for (i in 0 until n) {
-                    val seed = if (cfg.randomPerLed) step * 31 + i else step
-                    out[i] = hsv(((seed * 47) % 360).toFloat(), cfg.randomSaturation)
+                    val fromHue = randomHue(step, i, cfg.randomPerLed)
+                    val fromColor = hsv(fromHue, cfg.randomSaturation)
+                    if (cfg.randomSmooth && k > 0.0) {
+                        val toHue = randomHue(step + 1, i, cfg.randomPerLed)
+                        val toColor = hsv(toHue, cfg.randomSaturation)
+                        out[i] = mix(fromColor, toColor, k)
+                    } else {
+                        out[i] = fromColor
+                    }
                 }
             }
         }
@@ -185,6 +232,15 @@ object Renderer {
         val b = cfg.brightness.toDouble()
         if (b < 1.0) for (i in 0 until n) out[i] = scale(out[i], b)
         return out
+    }
+
+    private fun randomHue(step: Long, ledIndex: Int, perLed: Boolean): Float {
+        var x = (step + 104729L) * 0x517CC1B727220A95L + if (perLed) (ledIndex + 1) * 0x6C62272E07BB0142L else 0L
+        x = (x xor (x ushr 30)) * 0xBF58476D1CE4E5B9UL.toLong()
+        x = (x xor (x ushr 27)) * 0x94D049BB133111EBUL.toLong()
+        x = x xor (x ushr 31)
+        val u = (x ushr 33).toDouble() / 0x80000000L.toDouble()
+        return (u * 360.0).toFloat()
     }
 
     fun scale(color: Int, k: Double): Int {
@@ -204,10 +260,11 @@ object Renderer {
     }
 
     fun hsv(h: Float, s: Float = 1f, v: Float = 1f): Int {
+        val normH = ((h % 360f) + 360f) % 360f
         val c = v * s
-        val x = c * (1 - abs((h / 60f) % 2 - 1))
+        val x = c * (1 - abs((normH / 60f) % 2 - 1))
         val m = v - c
-        val (r, g, b) = when (((h / 60).toInt()) % 6) {
+        val (r, g, b) = when (((normH / 60).toInt()) % 6) {
             0 -> Triple(c, x, 0f)
             1 -> Triple(x, c, 0f)
             2 -> Triple(0f, c, x)

@@ -59,7 +59,27 @@ public final class Renderer {
             case "gradient": {
                 int a = palette[0];
                 int b = palette.length > 1 ? palette[1] : a;
-                for (int i = 0; i < n; i++) out[i] = mix(a, b, n == 1 ? 0 : (double) i / (n - 1));
+                int[] grad = new int[n];
+                for (int i = 0; i < n; i++) grad[i] = mix(a, b, n == 1 ? 0 : (double) i / (n - 1));
+                long rotateMs = cfg.optLong("rotateMs", 0);
+                boolean rotateFade = cfg.optBoolean("rotateFade", false);
+                if (rotateMs > 50) {
+                    if (rotateFade) {
+                        double pos = (t / (double) rotateMs) % n;
+                        int s = (int) Math.floor(pos);
+                        double frac = pos - s;
+                        for (int i = 0; i < n; i++) {
+                            int idx1 = (i + s) % n;
+                            int idx2 = (i + s + 1) % n;
+                            out[i] = mix(grad[idx1], grad[idx2], frac);
+                        }
+                    } else {
+                        int shift = (int) ((t / rotateMs) % n);
+                        for (int i = 0; i < n; i++) out[i] = grad[(i + shift) % n];
+                    }
+                } else {
+                    System.arraycopy(grad, 0, out, 0, n);
+                }
                 break;
             }
 
@@ -241,27 +261,40 @@ public final class Renderer {
 
             case "custom": {
                 long rotateMs = cfg.optLong("rotateMs", 0);
-                int shift = rotateMs > 50 ? (int) ((t / rotateMs) % n) : 0;
-                for (int i = 0; i < n; i++) out[i] = palette[((i + shift) % n) % palette.length];
-                break;
-            }
-
-            case "battery": {
-                int level = Math.max(0, Math.min(100, (int) cfg.optLong("level", 100)));
-                boolean breathe = cfg.optBoolean("breathe", true);
-                int litCount = level <= 0 ? 1 : Math.min(n, (level * n + 99) / 100);
-                for (int i = 0; i < n; i++) {
-                    if (i < litCount) {
-                        int c = batteryGradientColor(i, n);
-                        if (breathe && i == litCount - 1 && level < 100) {
-                            double phase = (t % speed) / (double) speed;
-                            double k = (1 - Math.cos(phase * 2 * Math.PI)) / 2;
-                            out[i] = scale(c, 0.15 + 0.85 * k);
-                        } else {
-                            out[i] = c;
+                boolean rotateFade = cfg.optBoolean("rotateFade", false);
+                boolean breathe = cfg.optBoolean("breathe", false);
+                if (rotateMs > 50) {
+                    if (rotateFade) {
+                        double pos = (t / (double) rotateMs) % n;
+                        int s = (int) Math.floor(pos);
+                        double frac = pos - s;
+                        for (int i = 0; i < n; i++) {
+                            int idx1 = ((i + s) % n) % palette.length;
+                            int idx2 = ((i + s + 1) % n) % palette.length;
+                            out[i] = mix(palette[idx1], palette[idx2], frac);
                         }
                     } else {
-                        out[i] = 0x00000000;
+                        int shift = (int) ((t / rotateMs) % n);
+                        for (int i = 0; i < n; i++) out[i] = palette[((i + shift) % n) % palette.length];
+                    }
+                } else {
+                    for (int i = 0; i < n; i++) out[i] = palette[i % palette.length];
+                }
+                if (breathe) {
+                    if (cfg.has("level") && cfg.optLong("level", 100) < 100) {
+                        int lastLit = -1;
+                        for (int j = n - 1; j >= 0; j--) {
+                            if (out[j] != 0) { lastLit = j; break; }
+                        }
+                        if (lastLit >= 0) {
+                            double phase = (t % speed) / (double) speed;
+                            double k = (1 - Math.cos(phase * 2 * Math.PI)) / 2;
+                            out[lastLit] = scale(out[lastLit], 0.15 + 0.85 * k);
+                        }
+                    } else {
+                        double phase = (t % speed) / (double) speed;
+                        double k = (1 - Math.cos(phase * 2 * Math.PI)) / 2;
+                        for (int i = 0; i < n; i++) out[i] = scale(out[i], 0.15 + 0.85 * k);
                     }
                 }
                 break;

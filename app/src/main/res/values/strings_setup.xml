@@ -12,10 +12,6 @@
 -->
 <resources>
 
-    <!-- Compact project attribution at the top of Settings. The whole card opens the profile. -->
-    <string name="setup_attribution">Made with passion and care by Dhananjay Tech</string>
-    <string name="setup_attribution_external">Opens Dhananjay Tech on X</string>
-
     <!-- Auto-off. The trailing readout and the slider badge both come from the shared duration
          strings, so only the prose is here. -->
     <string name="setup_auto_off_title">Auto-off</string>
@@ -53,6 +49,7 @@
     <string name="setup_charging_hint">Shows a gradient from red to green indicating charge progress across the LEDs.</string>
     <string name="setup_charging_breathe">Breathe active LED</string>
     <string name="setup_charging_breathe_hint">Gently pulses only the leading LED to show active charging.</string>
+    <string name="setup_charging_reset_colors">Reset to default colors</string>
 
     <!-- Slider badge for the two percentage sliders above. -->
     <string name="setup_percent">%1$d%%</string>

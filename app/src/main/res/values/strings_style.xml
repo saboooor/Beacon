@@ -32,6 +32,7 @@
     <string name="style_per_led_hint">LED 1 sits closest to the flash. Tap one, then pick its colour.</string>
     <string name="style_led_number">LED %1$d</string>
     <string name="style_rotate_around_array">Rotate around array</string>
+    <string name="style_rotate_fade">Fade between colors</string>
     <!-- The rotate slider's badge when it is turned right down, so rotation is disabled -->
     <string name="style_rotate_off">off</string>
     <!-- Fills the eight LEDs from the Material You scheme, which follows the wallpaper -->

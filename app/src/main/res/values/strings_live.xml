@@ -40,6 +40,7 @@
     <string name="live_safety_timed_out">Auto-off reached. Change the style or flip the switch to light it again.</string>
     <string name="live_safety_countdown">Auto-off in %1$ds · duty used %2$d%%</string>
     <string name="live_safety_disabled_countdown">Auto-off in %1$ds · safety limits disabled</string>
+    <string name="live_safety_disabled">Safety limits disabled</string>
 
     <!-- Renderer diagnostics under the countdown. %1$d is the process id, %2$s one of the two
          session states below. -->

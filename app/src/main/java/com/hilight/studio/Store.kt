@@ -385,6 +385,17 @@ class Store private constructor(private val app: Context) {
         MutableStateFlow(prefs.getBoolean("chargingBreathe", false))
     val chargingBreathe: StateFlow<Boolean> = _chargingBreathe.asStateFlow()
 
+    private fun loadChargingPerLed(): List<Int> {
+        val raw = prefs.getString("chargingPerLed", null) ?: return defaultBatteryColors()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.optLong(it).toInt() }
+        }.getOrNull()?.takeIf { it.size == LED_COUNT } ?: defaultBatteryColors()
+    }
+
+    private val _chargingPerLed = MutableStateFlow(loadChargingPerLed())
+    val chargingPerLed: StateFlow<List<Int>> = _chargingPerLed.asStateFlow()
+
     private val _isCharging = MutableStateFlow(false)
     val isCharging: StateFlow<Boolean> = _isCharging.asStateFlow()
 
@@ -941,6 +952,25 @@ class Store private constructor(private val app: Context) {
         _chargingBreathe.value = v
         prefs.edit().putBoolean("chargingBreathe", v).apply()
         refreshChargingState()
+    }
+
+    fun setChargingPerLed(colors: List<Int>) {
+        _chargingPerLed.value = colors
+        val arr = JSONArray().also { a -> colors.forEach { a.put(it.toUInt().toLong()) } }
+        prefs.edit().putString("chargingPerLed", arr.toString()).apply()
+        refreshChargingState()
+    }
+
+    fun setChargingLedColor(index: Int, color: Int) {
+        val updated = _chargingPerLed.value.toMutableList()
+        if (index in updated.indices) {
+            updated[index] = color
+            setChargingPerLed(updated)
+        }
+    }
+
+    fun resetChargingPerLed() {
+        setChargingPerLed(defaultBatteryColors())
     }
 
     fun setRespectDnd(v: Boolean) {
@@ -1722,6 +1752,7 @@ class Store private constructor(private val app: Context) {
             arm = true,                // the user asked for this one, so it may open a window
             preview = Ambient(
                 pattern = pattern, color = color, speedMs = speedMs, brightness = brightness,
+                randomIntervalMs = if (pattern == Pattern.RANDOM) 500 else 1500,
             ),
             source = AlertSource.PREVIEW,
         )
@@ -1762,13 +1793,13 @@ class Store private constructor(private val app: Context) {
             return
         }
 
-        val perLed = computeChargingPerLed(pct)
+        val perLed = computeChargingPerLed(pct, _chargingPerLed.value)
         val alertObj = JSONObject().apply {
             put("id", Bridge.nextAlertId())
-            put("pattern", "battery")
+            put("pattern", "custom")
             put("level", pct)
             put("breathe", _chargingBreathe.value)
-            put("color", 0xFF00E676.toInt().toUInt().toLong())
+            put("color", perLed.firstOrNull { it != 0 }?.toUInt()?.toLong() ?: 0xFF00E676L)
             put("colors", JSONArray().also { a -> perLed.forEach { a.put(it.toUInt().toLong()) } })
             put("durationMs", 0)
             put("speedMs", 2000)
@@ -3395,10 +3426,12 @@ class Store private constructor(private val app: Context) {
             }
         }
 
-        fun computeChargingPerLed(pct: Int): List<Int> {
+        fun defaultBatteryColors(n: Int = LED_COUNT): List<Int> = List(n) { batteryGradientColor(it, n) }
+
+        fun computeChargingPerLed(pct: Int, colors: List<Int> = defaultBatteryColors(LED_COUNT)): List<Int> {
             val litCount = if (pct <= 0) 1 else ((pct * LED_COUNT + 99) / 100).coerceIn(1, LED_COUNT)
             return List(LED_COUNT) { index ->
-                if (index < litCount) batteryGradientColor(index, LED_COUNT) else 0x00000000
+                if (index < litCount) colors.getOrElse(index) { batteryGradientColor(index, LED_COUNT) } else 0x00000000
             }
         }
 

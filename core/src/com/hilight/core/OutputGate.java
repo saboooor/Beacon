@@ -37,7 +37,7 @@ final class OutputGate {
     void startAlert(long elapsedRealtime, long durationMs) {
         alertHeld = true;
         alertStart = elapsedRealtime;
-        alertEnd = deadlineAfter(elapsedRealtime, durationMs);
+        alertEnd = durationMs <= 0 ? Long.MAX_VALUE : deadlineAfter(elapsedRealtime, durationMs);
     }
 
     /**
@@ -56,7 +56,7 @@ final class OutputGate {
 
     /** Starts a fresh auto-off window. Only a deliberate user action should call this. */
     void armAmbient(long elapsedRealtime, long timeoutMs) {
-        ambientDeadline = deadlineAfter(elapsedRealtime, timeoutMs);
+        ambientDeadline = timeoutMs <= 0 ? Long.MAX_VALUE : deadlineAfter(elapsedRealtime, timeoutMs);
         blanked = false;
     }
 
@@ -81,6 +81,7 @@ final class OutputGate {
     }
 
     long ambientRemainingMs(long elapsedRealtime) {
+        if (ambientDeadline == Long.MAX_VALUE) return -1;
         return Math.max(0, ambientDeadline - elapsedRealtime);
     }
 

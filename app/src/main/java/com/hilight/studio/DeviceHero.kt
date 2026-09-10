@@ -9,6 +9,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -421,48 +423,28 @@ fun rememberLedFrame(pattern: Pattern, cfg: Ambient, active: Boolean = true): In
     return frame
 }
 
-/** Compact strip used on rule cards: an abstraction of the array, one dot per addressable LED. */
+/** Renders the 8 LEDs arranged in a circle preview for rule and style cards. */
 @Composable
 fun LedStrip(
     pattern: Pattern,
     cfg: Ambient,
     modifier: Modifier = Modifier,
     active: Boolean = true,
-    heightDp: Int = 40,
+    heightDp: Int = 48,
 ) {
-    val frame = rememberLedFrame(pattern, cfg, active)
-    val patternName = stringResource(pattern.labelRes)
-    val label = if (active) stringResource(R.string.hero_strip_preview, patternName)
-    else stringResource(R.string.hero_strip_off, patternName)
-    Canvas(
-        modifier
+    val sizeDp = maxOf(44, heightDp)
+    Box(
+        modifier = modifier
             .fillMaxWidth()
-            .height(heightDp.dp)
-            .semantics { contentDescription = label },
+            .height(sizeDp.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        val n = frame.size
-        val gap = size.width / (n * 3.2f)
-        val d = (size.width - gap * (n - 1)) / n
-        val r = minOf(d, size.height) / 2.6f
-        for (i in 0 until n) {
-            val c = Color(frame[i])
-            val cx = i * (d + gap) + d / 2f
-            val cyc = size.height / 2f
-            val lum = (c.red + c.green + c.blue) / 3f
-            if (lum > 0.02f) {
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        listOf(c.copy(alpha = 0.45f * lum), Color.Transparent),
-                        center = Offset(cx, cyc),
-                        radius = r * 3.4f,
-                    ),
-                    radius = r * 3.4f,
-                    center = Offset(cx, cyc),
-                )
-            }
-            drawCircle(Color.Black.copy(alpha = 0.14f), radius = r * 1.2f, center = Offset(cx, cyc))
-            drawCircle(c, radius = r, center = Offset(cx, cyc))
-        }
+        HiLightDiscPreview(
+            pattern = pattern,
+            cfg = cfg,
+            active = active,
+            modifier = Modifier.size(sizeDp.dp),
+        )
     }
 }
 

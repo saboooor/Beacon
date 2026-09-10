@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -30,23 +31,36 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import android.provider.Settings
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +76,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -106,6 +122,50 @@ fun AppRulesScreen(store: Store) {
     var importText by remember { mutableStateOf("") }
     val learnedPackages = remember(conversations) {
         conversations.mapTo(mutableSetOf()) { it.pkg }
+    }
+
+    val resources = LocalResources.current
+    val scope = rememberCoroutineScope()
+    val keepNotifUntilDismissed by store.keepNotifUntilDismissed.collectAsStateWithLifecycle()
+    val notifAlternateIntervalMs by store.notifAlternateIntervalMs.collectAsStateWithLifecycle()
+    var notifAccess by remember { mutableStateOf(hasNotificationAccess(ctx)) }
+    var usageAccess by remember { mutableStateOf(ForegroundWatcher.hasUsageAccess(ctx)) }
+    var inspecting by remember { mutableStateOf(false) }
+    var forgetting by remember { mutableStateOf(false) }
+    var selfTestCountdown by remember { mutableIntStateOf(0) }
+    var selfTestWarning by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            notifAccess = hasNotificationAccess(ctx)
+            usageAccess = ForegroundWatcher.hasUsageAccess(ctx)
+            delay(1500)
+        }
+    }
+
+    val testWarning: (Boolean) -> String? = { scheduling ->
+        val reason = store.notificationTestSuppressionReason(scheduling)
+        val notificationManager = ctx.getSystemService(android.app.NotificationManager::class.java)
+        when {
+            !store.enabled.value -> resources.getString(R.string.setup_test_blocked_hilight_off)
+            !hasNotificationAccess(ctx) -> resources.getString(R.string.setup_test_needs_listener)
+            store.respectDnd.value && store.deviceSignals.inDoNotDisturb ->
+                resources.getString(R.string.setup_test_blocked_dnd)
+            !notificationManager.areNotificationsEnabled() ||
+                notificationManager.getNotificationChannel("selftest")?.importance ==
+                android.app.NotificationManager.IMPORTANCE_NONE ->
+                resources.getString(R.string.setup_test_needs_notifications)
+            reason != null -> resources.getString(
+                R.string.test_blocked_by_guard, resources.getString(reason.shortRes),
+            )
+            else -> null
+        }
+    }
+    val postSelfTest: () -> Unit = {
+        val warning = testWarning(false)
+        selfTestWarning = warning
+        if (warning == null) postSelfTestNotification(ctx.applicationContext)
+        else Toast.makeText(ctx.applicationContext, warning, Toast.LENGTH_LONG).show()
     }
 
     val startWholeAppRule: (InstalledApp) -> Unit = { app ->
@@ -189,6 +249,122 @@ fun AppRulesScreen(store: Store) {
         onTest = { launchPreview(it.pattern, it.color, it.speedMs, it.brightness, it.lightMs) },
         onDelete = store::removePrivacyRule,
     )
+
+    PixelCard {
+        SectionTitle(
+            stringResource(R.string.setup_notif_title),
+            trailing = {
+                LivePill(
+                    stringResource(
+                        if (notifAccess) R.string.setup_state_granted else R.string.setup_state_needed
+                    ),
+                    notifAccess,
+                )
+            },
+        )
+        Caption(stringResource(R.string.setup_notif_body))
+        FilledTonalButton(
+            onClick = { ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
+        ) { ButtonLabel(stringResource(R.string.setup_open_notif_access)) }
+        Caption(stringResource(R.string.setup_inspector_body))
+        TextButton(onClick = { inspecting = true }) {
+            ButtonLabel(stringResource(R.string.setup_inspector_button))
+        }
+        ToggleRow(
+            stringResource(R.string.setup_notif_until_dismissed),
+            keepNotifUntilDismissed,
+        ) {
+            store.setKeepNotifUntilDismissed(it)
+        }
+        Caption(stringResource(R.string.setup_notif_until_dismissed_hint))
+        if (keepNotifUntilDismissed) {
+            PixelSlider(
+                stringResource(R.string.setup_notif_alternate_interval),
+                notifAlternateIntervalMs.toFloat(),
+                2000f..10000f,
+                { store.setNotifAlternateIntervalMs(it.toInt()) },
+            ) { formatDuration(it.toInt()) }
+            Caption(stringResource(R.string.setup_notif_alternate_hint))
+        }
+        Caption(
+            if (conversations.isEmpty()) {
+                stringResource(R.string.setup_chats_none)
+            } else {
+                stringResource(R.string.setup_chats_remembered, conversations.size)
+            }
+        )
+        if (conversations.isNotEmpty()) {
+            TextButton(onClick = { forgetting = true }) {
+                ButtonLabel(stringResource(R.string.setup_forget_chats_button))
+            }
+        }
+    }
+
+    PixelCard {
+        SectionTitle(
+            stringResource(R.string.setup_usage_title),
+            trailing = {
+                LivePill(
+                    stringResource(
+                        if (usageAccess) R.string.setup_state_granted else R.string.setup_state_optional
+                    ),
+                    usageAccess,
+                )
+            },
+        )
+        Caption(stringResource(R.string.setup_usage_body))
+        FilledTonalButton(onClick = { ctx.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }) {
+            ButtonLabel(stringResource(R.string.setup_open_usage_access))
+        }
+    }
+
+    PixelCard {
+        SectionTitle(stringResource(R.string.setup_test_title))
+        Caption(stringResource(R.string.setup_test_body))
+        selfTestWarning?.let { Caption(it) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FilledTonalButton(
+                onClick = postSelfTest,
+                enabled = selfTestCountdown == 0,
+                modifier = Modifier.weight(1f),
+            ) {
+                ButtonLabel(stringResource(R.string.setup_test_button))
+            }
+            TextButton(
+                onClick = {
+                    if (selfTestCountdown != 0) return@TextButton
+                    val warning = testWarning(true)
+                    selfTestWarning = warning
+                    if (warning != null) {
+                        Toast.makeText(ctx.applicationContext, warning, Toast.LENGTH_LONG).show()
+                        return@TextButton
+                    }
+                    selfTestCountdown = 5
+                    scope.launch {
+                        try {
+                            for (remaining in 5 downTo 1) {
+                                selfTestCountdown = remaining
+                                delay(1_000)
+                            }
+                            postSelfTest()
+                        } finally {
+                            selfTestCountdown = 0
+                        }
+                    }
+                },
+                enabled = selfTestCountdown == 0,
+                modifier = Modifier.weight(1f),
+            ) {
+                ButtonLabel(
+                    if (selfTestCountdown > 0) {
+                        stringResource(R.string.setup_test_countdown, selfTestCountdown)
+                    } else {
+                        stringResource(R.string.setup_test_delay_button)
+                    }
+                )
+            }
+        }
+    }
 
     if (picking) {
         AppPickerDialog(
@@ -377,6 +553,37 @@ fun AppRulesScreen(store: Store) {
             },
         )
     }
+
+    if (inspecting) {
+        NotificationInspectorDialog(store) { inspecting = false }
+    }
+
+    if (forgetting) {
+        AlertDialog(
+            onDismissRequest = { forgetting = false },
+            shape = MaterialTheme.shapes.extraLarge,
+            title = { Text(stringResource(R.string.setup_forget_chats_title)) },
+            text = {
+                Text(
+                    stringResource(R.string.setup_forget_chats_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        store.forgetConversations()
+                        forgetting = false
+                    },
+                ) { ButtonLabel(stringResource(R.string.setup_forget_chats_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { forgetting = false }) {
+                    ButtonLabel(stringResource(R.string.setup_forget_chats_dismiss))
+                }
+            },
+        )
+    }
 }
 
 private fun shareRules(ctx: android.content.Context, text: String) {
@@ -424,6 +631,7 @@ private fun RuleCard(
     PixelCard(
         modifier = if (perChat) Modifier.padding(start = 14.dp) else Modifier,
         tone = if (perChat) 0 else 1,
+        onClick = onEdit,
     ) {
         Row(
             Modifier.fillMaxWidth(),
@@ -431,18 +639,17 @@ private fun RuleCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
-                Modifier.fillMaxWidth(0.72f),
+                Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (!rule.randomColor) {
-                    Box(
-                        Modifier
-                            .size(14.dp)
-                            .background(Color(rule.color), CircleShape)
-                    )
-                }
-                Column {
+                HiLightDiscPreview(
+                    pattern = rule.pattern,
+                    cfg = rule.effectiveLook(),
+                    active = rule.enabled,
+                    modifier = Modifier.size(42.dp),
+                )
+                Column(Modifier.weight(1f, fill = false)) {
                     if (perChat) {
                         Caption(ruleLabel(rule))
                         Row(
@@ -502,34 +709,29 @@ private fun RuleCard(
                     }
                 }
             }
-            Switch(
-                checked = rule.enabled,
-                onCheckedChange = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onToggle(it)
-                },
-            )
-        }
-        LedStrip(
-            rule.pattern,
-            Ambient(
-                pattern = rule.pattern,
-                color = rule.color,
-                speedMs = rule.speedMs,
-                brightness = rule.brightness,
-            ),
-            active = rule.enabled,
-            heightDp = 34,
-        )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FilledTonalButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
-                ButtonLabel(stringResource(R.string.common_edit))
-            }
-            FilledTonalButton(onClick = onTest, modifier = Modifier.weight(1f)) {
-                ButtonLabel(stringResource(R.string.common_test))
-            }
-            TextButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
-                ButtonLabel(stringResource(R.string.common_delete))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                IconButton(onClick = onTest) {
+                    Icon(
+                        Icons.Rounded.PlayArrow,
+                        contentDescription = stringResource(R.string.common_test),
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Rounded.DeleteOutline,
+                        contentDescription = stringResource(R.string.common_delete),
+                    )
+                }
+                Switch(
+                    checked = rule.enabled,
+                    onCheckedChange = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onToggle(it)
+                    },
+                )
             }
         }
     }
@@ -660,6 +862,7 @@ private fun AppIcon(app: InstalledApp) {
  * trigger and the conversation — two of which this dialog can change. Saving is id-keyed, so an edit
  * that walks onto another rule's id replaces it, and only the full list can see that coming.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RuleEditorDialog(
     rule: AppRule,
@@ -695,39 +898,54 @@ private fun RuleEditorDialog(
         replacesExistingRule(existing, r, rule, isNew)
     }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        shape = MaterialTheme.shapes.extraLarge,
-        title = {
-            Text(
-                if (r.isConversationRule) {
-                    stringResource(
-                        R.string.rules_editor_title_chat,
-                        ruleLabel(r),
-                        r.conversationName.orEmpty(),
-                    )
-                } else {
-                    ruleLabel(r)
-                }
-            )
-        },
-        confirmButton = {
-            Button(onClick = { onSave(r) }) { ButtonLabel(stringResource(R.string.common_save)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { ButtonLabel(stringResource(R.string.common_cancel)) }
-        },
-        text = {
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            if (r.isConversationRule) {
+                                stringResource(
+                                    R.string.rules_editor_title_chat,
+                                    ruleLabel(r),
+                                    r.conversationName.orEmpty(),
+                                )
+                            } else {
+                                ruleLabel(r)
+                            }
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.common_cancel),
+                            )
+                        }
+                    },
+                    actions = {
+                        Button(onClick = { onSave(r) }) {
+                            ButtonLabel(stringResource(R.string.common_save))
+                        }
+                    },
+                )
+            },
+        ) { innerPadding ->
             Column(
                 Modifier
-                    .heightIn(max = 520.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 LedStrip(
                     r.pattern,
                     r.effectiveLook(),
-                    heightDp = 38,
+                    heightDp = 48,
                 )
 
                 if (r.isConversationRule) {
@@ -761,6 +979,7 @@ private fun RuleEditorDialog(
                     selected = r.pattern,
                     options = Pattern.entries.filter { it != Pattern.OFF && it != Pattern.CUSTOM },
                     onSelect = { r = r.copy(pattern = it) },
+                    ambient = r.effectiveLook(),
                 )
 
                 if (r.pattern != Pattern.CUSTOM) {
@@ -936,9 +1155,21 @@ private fun RuleEditorDialog(
                 if (replacesAnother) {
                     Caption(stringResource(R.string.rules_replace_warning))
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                        ButtonLabel(stringResource(R.string.common_cancel))
+                    }
+                    Button(onClick = { onSave(r) }, modifier = Modifier.weight(1f)) {
+                        ButtonLabel(stringResource(R.string.common_save))
+                    }
+                }
             }
-        },
-    )
+        }
+    }
 
     if (pickingPreset) {
         AlertDialog(

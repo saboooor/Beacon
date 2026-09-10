@@ -253,7 +253,7 @@ public final class Engine {
                     || o.optBoolean("safetyDisabled", false);
             safety.setEnabled(!safetyDisabled);
             ambientTimeoutMs = safetyDisabled
-                    ? Math.max(1_000, o.optLong("ambientTimeoutMs", DEFAULT_AMBIENT_TIMEOUT_MS))
+                    ? 0
                     : Math.max(
                             1_000,
                             Math.min(
@@ -269,7 +269,7 @@ public final class Engine {
             // Defaulting to false matters: a document that omits the key must not arm. The app always
             // sends it, but the bootstrap file the app drops for a not-yet-running helper is just
             // {"enabled":false}, and defaulting to true let that open a window nobody asked for.
-            if (o.optBoolean("arm", false)) {
+            if (o.optBoolean("arm", false) || (safetyDisabled && gate.isAmbientHeld())) {
                 gate.armAmbient(elapsedRealtime, ambientTimeoutMs);
             }
             JSONObject a = o.optJSONObject("alert");
@@ -667,8 +667,9 @@ public final class Engine {
             case "rainbow":
             case "random":
                 return true;
+            case "gradient":
             case "custom":
-                return cfg.optLong("rotateMs", 0) > 50;
+                return cfg.optLong("rotateMs", 0) > 50 || cfg.optBoolean("breathe", false);
             default:
                 return false;
         }

@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -60,16 +62,15 @@ fun AmbientScreen(store: Store) {
     val enabled by store.enabled.collectAsStateWithLifecycle()
     var editingLed by rememberSaveable { mutableIntStateOf(0) }
 
-    PresetsCard(store)
-    ChargingBatteryCard(store)
+    TryAnEffectCard(store)
 
     PixelCard(tone = 2) {
         SectionTitle(stringResource(R.string.style_always_on_style))
-        LedStrip(ambient.pattern, ambient, active = enabled, heightDp = 46)
         PatternCarousel(
             selected = ambient.pattern,
             options = Pattern.entries,
             onSelect = { store.setAmbient(ambient.copy(pattern = it)) },
+            ambient = ambient,
         )
         if (!enabled) {
             Text(
@@ -154,6 +155,12 @@ fun AmbientScreen(store: Store) {
                         if (it < 50) stringResource(R.string.style_rotate_off)
                         else stringResource(R.string.duration_ms, it.toInt())
                     }
+                    if (ambient.rotateMs >= 50) {
+                        ToggleRow(
+                            stringResource(R.string.style_rotate_fade),
+                            ambient.rotateFade,
+                        ) { store.setAmbient(ambient.copy(rotateFade = it)) }
+                    }
                     val wallpaper = wallpaperLedColours()
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         FilledTonalButton(
@@ -190,6 +197,21 @@ fun AmbientScreen(store: Store) {
                         { store.setAmbient(ambient.copy(secondColor = it)) },
                         stringResource(R.string.style_gradient_end),
                     )
+                    PixelSlider(
+                        stringResource(R.string.style_rotate_around_array),
+                        ambient.rotateMs.toFloat(),
+                        0f..2000f,
+                        { store.setAmbient(ambient.copy(rotateMs = it.toInt())) },
+                    ) {
+                        if (it < 50) stringResource(R.string.style_rotate_off)
+                        else stringResource(R.string.duration_ms, it.toInt())
+                    }
+                    if (ambient.rotateMs >= 50) {
+                        ToggleRow(
+                            stringResource(R.string.style_rotate_fade),
+                            ambient.rotateFade,
+                        ) { store.setAmbient(ambient.copy(rotateFade = it)) }
+                    }
                 }
 
                 Pattern.OFF -> PixelCard {
@@ -224,6 +246,94 @@ fun AmbientScreen(store: Store) {
                         { store.setAmbient(ambient.copy(brightness = it)) },
                     ) { stringResource(R.string.style_percent, (it * 100).toInt()) }
                     Caption(stringResource(R.string.style_brightness_note))
+                }
+            }
+        }
+    }
+
+    PresetsCard(store)
+    ChargingBatteryCard(store)
+    DeviceSignalsSection(store)
+}
+
+/**
+ * White-light effects have no colour of their own, so give their tiles a readable accent.
+ */
+@Composable
+private fun tileAccent(pattern: Pattern, color: Int): Color = when {
+    color != 0xFFFFFFFF.toInt() -> Color(color)
+    pattern == Pattern.RAINBOW -> Color(0xFF7C4DFF)
+    else -> Color(0xFFFFB300)
+}
+
+private data class EffectTest(val labelRes: Int, val pattern: Pattern, val color: Int)
+
+/** One-tap effects to try out every pattern. */
+@Composable
+private fun TryAnEffectCard(store: Store) {
+    val launchPreview = rememberPreviewLauncher(store)
+    val enabled by store.enabled.collectAsStateWithLifecycle()
+    val ambient by store.ambient.collectAsStateWithLifecycle()
+    val status by store.status.collectAsStateWithLifecycle()
+
+    val tests: List<EffectTest> = listOf(
+        EffectTest(Pattern.RAINBOW.shortLabelRes, Pattern.RAINBOW, 0xFFFFFFFF.toInt()),
+        EffectTest(R.string.live_test_random, Pattern.RANDOM, 0xFFFFFFFF.toInt()),
+        EffectTest(Pattern.STROBE.shortLabelRes, Pattern.STROBE, 0xFFFFFFFF.toInt()),
+        EffectTest(Pattern.COMET.shortLabelRes, Pattern.COMET, 0xFF00E5FF.toInt()),
+        EffectTest(Pattern.PULSE.shortLabelRes, Pattern.PULSE, 0xFFFF1744.toInt()),
+        EffectTest(Pattern.HEARTBEAT.shortLabelRes, Pattern.HEARTBEAT, 0xFFFF1744.toInt()),
+        EffectTest(Pattern.BREATHE.shortLabelRes, Pattern.BREATHE, 0xFF7C4DFF.toInt()),
+        EffectTest(Pattern.WAVE.shortLabelRes, Pattern.WAVE, 0xFF00E676.toInt()),
+        EffectTest(Pattern.RADAR.shortLabelRes, Pattern.RADAR, 0xFF00E5FF.toInt()),
+        EffectTest(Pattern.BOUNCE.shortLabelRes, Pattern.BOUNCE, 0xFFFF9100.toInt()),
+        EffectTest(Pattern.CONVERGE.shortLabelRes, Pattern.CONVERGE, 0xFFE040FB.toInt()),
+        EffectTest(Pattern.GLITCH.shortLabelRes, Pattern.GLITCH, 0xFF00E5FF.toInt()),
+        EffectTest(Pattern.METER.shortLabelRes, Pattern.METER, 0xFF00E676.toInt()),
+        EffectTest(Pattern.BLINK.shortLabelRes, Pattern.BLINK, 0xFFFFD600.toInt()),
+        EffectTest(Pattern.CHASE.shortLabelRes, Pattern.CHASE, 0xFF00B0FF.toInt()),
+    )
+
+    PixelCard {
+        SectionTitle(stringResource(R.string.live_tests_title))
+        Caption(stringResource(R.string.live_tests_caption))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            tests.chunked(3).forEach { row ->
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    row.forEach { test ->
+                        val tileAmbient = remember(test.pattern, test.color) {
+                            Ambient(
+                                pattern = test.pattern,
+                                color = test.color,
+                                speedMs = 1200,
+                                brightness = 1f,
+                                randomIntervalMs = 500,
+                            )
+                        }
+                        PixelTile(
+                            label = stringResource(test.labelRes),
+                            accent = tileAccent(test.pattern, test.color),
+                            enabled = enabled && status.alive,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                if (test.pattern == Pattern.RANDOM) {
+                                    launchPreview(test.pattern, test.color, 1200, 1f, 4_000, ambient.copy(pattern = Pattern.RANDOM))
+                                } else {
+                                    launchPreview(test.pattern, test.color, 1200, 1f, 4_000, null)
+                                }
+                            },
+                        ) {
+                            HiLightDiscPreview(
+                                pattern = test.pattern,
+                                cfg = tileAmbient,
+                                active = enabled && status.alive,
+                                modifier = Modifier.size(26.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -379,6 +489,7 @@ fun PatternCarousel(
     selected: Pattern,
     options: List<Pattern>,
     onSelect: (Pattern) -> Unit,
+    ambient: Ambient? = null,
 ) {
     val haptics = LocalHapticFeedback.current
     val listState = rememberLazyListState()
@@ -411,17 +522,38 @@ fun PatternCarousel(
                 spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMedium),
                 label = "chipScale",
             )
+            val chipColor = if (ambient != null && ambient.color != 0) ambient.color else 0xFF00E5FF.toInt()
+            val chipAmbient = remember(p, ambient, chipColor) {
+                (ambient ?: Ambient(color = chipColor)).copy(
+                    pattern = p,
+                    color = chipColor,
+                    speedMs = (ambient?.speedMs ?: 1200).coerceIn(800, 2000),
+                    randomIntervalMs = if (p == Pattern.RANDOM) 500 else (ambient?.randomIntervalMs ?: 1500),
+                )
+            }
             Box(
                 Modifier
                     .scale(scale)
-                    .background(bg, CircleShape)
+                    .clip(CircleShape)
+                    .background(bg)
                     .clickable {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         onSelect(p)
                     }
-                    .padding(horizontal = 18.dp, vertical = 11.dp),
+                    .padding(start = 8.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
             ) {
-                Text(stringResource(p.labelRes), style = MaterialTheme.typography.labelLarge, color = fg)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    HiLightDiscPreview(
+                        pattern = p,
+                        cfg = chipAmbient,
+                        active = true,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Text(stringResource(p.labelRes), style = MaterialTheme.typography.labelLarge, color = fg)
+                }
             }
         }
     }
@@ -465,6 +597,8 @@ private fun ChargingBatteryCard(store: Store) {
     val chargingBreathe by store.chargingBreathe.collectAsStateWithLifecycle()
     val isCharging by store.isCharging.collectAsStateWithLifecycle()
     val batteryLevel by store.batteryLevel.collectAsStateWithLifecycle()
+    val chargingPerLed by store.chargingPerLed.collectAsStateWithLifecycle()
+    var editingLed by rememberSaveable { mutableIntStateOf(0) }
 
     PixelCard {
         SectionTitle(
@@ -483,6 +617,44 @@ private fun ChargingBatteryCard(store: Store) {
             store.setChargingIndicator(it)
         }
         if (chargingIndicator) {
+            val previewColors = remember(batteryLevel, chargingPerLed, isCharging) {
+                Store.computeChargingPerLed(if (isCharging) batteryLevel else 100, chargingPerLed)
+            }
+            val previewAmbient = remember(previewColors) {
+                Ambient(pattern = Pattern.CUSTOM, perLed = previewColors)
+            }
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                HiLightDiscPreview(
+                    pattern = Pattern.CUSTOM,
+                    cfg = previewAmbient,
+                    active = true,
+                    modifier = Modifier.size(90.dp),
+                )
+            }
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                chargingPerLed.forEachIndexed { i, c ->
+                    LedSwatch(
+                        color = c,
+                        selected = i == editingLed,
+                        modifier = Modifier.weight(1f),
+                    ) { editingLed = i }
+                }
+            }
+
+            ColorPicker(
+                color = chargingPerLed.getOrElse(editingLed) { Store.batteryGradientColor(editingLed, LED_COUNT) },
+                onColor = { c -> store.setChargingLedColor(editingLed, c) },
+                label = stringResource(R.string.style_led_number, editingLed + 1),
+            )
+
+            FilledTonalButton(
+                onClick = { store.resetChargingPerLed() },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                ButtonLabel(stringResource(R.string.setup_charging_reset_colors))
+            }
+
             ToggleRow(stringResource(R.string.setup_charging_breathe), chargingBreathe) {
                 store.setChargingBreathe(it)
             }
