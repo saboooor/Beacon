@@ -307,7 +307,7 @@ private fun DrawScope.drawHiLightDisc(colors: IntArray, center: Offset, radius: 
         LensRing.copy(alpha = 0.5f),
         radius = radius * 1.12f,
         center = center,
-        style = Stroke(width = size.height * 0.0025f),
+        style = Stroke(width = maxOf(1.5f, radius * 0.07f)),
     )
 
     if (bloom <= 0.01f || colors.isEmpty()) {
@@ -465,3 +465,34 @@ fun LedStrip(
         }
     }
 }
+
+/**
+ * Standalone HiLight disc preview, showing the 8 addressable LEDs behind the diffused circular
+ * lens window with authentic glow and bloom.
+ */
+@Composable
+fun HiLightDiscPreview(
+    pattern: Pattern,
+    cfg: Ambient,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val frame = rememberLedFrame(pattern, cfg, active)
+    val bloom by animateFloatAsState(
+        targetValue = if (active) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow),
+        label = "disc_preview_bloom",
+    )
+    val patternName = stringResource(pattern.labelRes)
+    val label = if (active) stringResource(R.string.hero_showing, patternName)
+    else stringResource(R.string.hero_array_off)
+
+    Canvas(
+        modifier = modifier.semantics { contentDescription = label },
+    ) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val radius = minOf(size.width, size.height) * 0.36f
+        drawHiLightDisc(frame, center, radius, bloom)
+    }
+}
+

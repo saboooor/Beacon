@@ -113,14 +113,7 @@ fun LiveScreen(store: Store) {
     val modelName = profile.labelRes?.let { stringResource(it) } ?: profile.label
 
     PixelCard(tone = 0) {
-        // while a test is running the hero shows the test, not the ambient look
         val shown = previewLook ?: ambient
-        DeviceHero(
-            pattern = if (enabled) shown.pattern else Pattern.OFF,
-            cfg = shown,
-            active = enabled && status.alive,
-            profile = profile,
-        )
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

@@ -112,6 +112,9 @@ private fun App(store: Store) {
     val tab = Tab.entries[tabIndex.coerceIn(0, Tab.entries.lastIndex)]
     val status by store.status.collectAsStateWithLifecycle()
     val active by store.activeTransport.collectAsStateWithLifecycle()
+    val enabled by store.enabled.collectAsStateWithLifecycle()
+    val ambient by store.ambient.collectAsStateWithLifecycle()
+    val previewLook by store.previewLook.collectAsStateWithLifecycle()
     val haptics = LocalHapticFeedback.current
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
@@ -128,19 +131,23 @@ private fun App(store: Store) {
         }
     }
 
+    val shown = previewLook ?: ambient
+    val activeLight = (enabled || previewLook != null) && status.alive
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            // single-line bar: the hero already carries the visual weight
             TopAppBar(
+                modifier = Modifier.padding(vertical = 4.dp),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(R.drawable.hilight_logo),
-                            contentDescription = "Beacon logo",
-                            modifier = Modifier.size(32.dp),
+                        HiLightDiscPreview(
+                            pattern = if (activeLight) shown.pattern else Pattern.OFF,
+                            cfg = shown,
+                            active = activeLight,
+                            modifier = Modifier.size(44.dp),
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(10.dp))
                         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
                     }
                 },
