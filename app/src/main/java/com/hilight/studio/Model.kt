@@ -193,8 +193,8 @@ data class AppRule(
     /** Full saved look, copied into the rule so editing or deleting a preset cannot change it. */
     val look: Ambient? = null,
     val ignoreSilent: Boolean = false,
-    val repeatWhilePending: Boolean = false,
-    val repeatIntervalMs: Int = 15_000,
+    val stayUntilDismissed: Boolean = false,
+    val stopWhenUnlocked: Boolean = false,
     /** Exclusions apply only to catch-all rules, leaving explicit app rules independent. */
     val excludedPackages: Set<String> = emptySet(),
 ) {
@@ -243,8 +243,8 @@ data class AppRule(
         put("conversationIsGroup", conversationIsGroup)
         look?.let { put("look", it.toPrefsJson()) }
         put("ignoreSilent", ignoreSilent)
-        put("repeatWhilePending", repeatWhilePending)
-        put("repeatIntervalMs", repeatIntervalMs.coerceIn(5_000, 60_000))
+        put("stayUntilDismissed", stayUntilDismissed)
+        put("stopWhenUnlocked", stopWhenUnlocked)
         put("excludedPackages", JSONArray().also { a -> excludedPackages.sorted().forEach(a::put) })
     }
 
@@ -273,8 +273,8 @@ data class AppRule(
             conversationIsGroup = o.optBoolean("conversationIsGroup", false),
             look = o.optJSONObject("look")?.let(Ambient::fromJson),
             ignoreSilent = o.optBoolean("ignoreSilent", false),
-            repeatWhilePending = o.optBoolean("repeatWhilePending", false),
-            repeatIntervalMs = o.optInt("repeatIntervalMs", 15_000).coerceIn(5_000, 60_000),
+            stayUntilDismissed = o.optBoolean("stayUntilDismissed", false),
+            stopWhenUnlocked = o.optBoolean("stopWhenUnlocked", false),
             excludedPackages = o.optJSONArray("excludedPackages")?.let { a ->
                 (0 until a.length()).mapNotNull { a.optString(it).takeIf(String::isNotBlank) }.toSet()
             } ?: emptySet(),

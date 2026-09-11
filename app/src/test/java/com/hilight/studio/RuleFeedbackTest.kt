@@ -27,14 +27,13 @@ class RuleFeedbackTest {
     @Test fun `old rules keep existing behavior and new options roundtrip`() {
         val old = AppRule.fromJson(JSONObject().put("pkg", "chat.app"))
         assertFalse(old.ignoreSilent)
-        assertFalse(old.repeatWhilePending)
+        assertFalse(old.stayUntilDismissed)
+        assertFalse(old.stopWhenUnlocked)
         assertTrue(old.excludedPackages.isEmpty())
         assertNull(old.look)
         val configured = any.copy(ignoreSilent = true, excludedPackages = setOf("chat.app"),
-            repeatWhilePending = true, repeatIntervalMs = 30_000)
+            stayUntilDismissed = true, stopWhenUnlocked = true)
         assertEquals(configured, AppRule.fromJson(configured.toPrefsJson()))
-        assertEquals(5_000, AppRule.fromJson(configured.toPrefsJson().put("repeatIntervalMs", -1)).repeatIntervalMs)
-        assertEquals(60_000, AppRule.fromJson(configured.toPrefsJson().put("repeatIntervalMs", Int.MAX_VALUE)).repeatIntervalMs)
     }
 
     @Test fun `excluded apps skip catch all but retain their explicit rule`() {

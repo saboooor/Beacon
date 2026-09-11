@@ -415,10 +415,6 @@ class Store private constructor(private val app: Context) {
     private val _respectDnd = MutableStateFlow(prefs.getBoolean("respectDnd", true))
     val respectDnd: StateFlow<Boolean> = _respectDnd.asStateFlow()
 
-    private val _keepNotifUntilDismissed =
-        MutableStateFlow(prefs.getBoolean("keepNotifUntilDismissed", false))
-    val keepNotifUntilDismissed: StateFlow<Boolean> = _keepNotifUntilDismissed.asStateFlow()
-
     private val _notifAlternateIntervalMs =
         MutableStateFlow(prefs.getInt("notifAlternateIntervalMs", 4000).coerceIn(2000, 10000))
     val notifAlternateIntervalMs: StateFlow<Int> = _notifAlternateIntervalMs.asStateFlow()
@@ -601,7 +597,7 @@ class Store private constructor(private val app: Context) {
                     when (screenLifecycleAction(i?.action, activeAlertScreenOffGated)) {
                         ScreenLifecycleAction.ARM_AND_REFRESH -> {
                             refreshSuppression(armOnRelease = true)
-                            if (_keepNotifUntilDismissed.value && activeNotifAlerts.isNotEmpty()) {
+                            if (activeNotifAlerts.isNotEmpty()) {
                                 cycleActiveNotificationAlert()
                             }
                             refreshChargingState()
@@ -813,21 +809,11 @@ class Store private constructor(private val app: Context) {
         globalFaceDownOnly = _faceDownOnly.value,
     )
 
-    fun setKeepNotifUntilDismissed(v: Boolean) {
-        _keepNotifUntilDismissed.value = v
-        prefs.edit().putBoolean("keepNotifUntilDismissed", v).apply()
-        if (!v) {
-            stopNotifAlternation()
-            activeNotifAlerts.clear()
-            if (!alertIsPreview) releaseAlert()
-        }
-    }
-
     fun setNotifAlternateIntervalMs(v: Int) {
         val clamped = v.coerceIn(2000, 10000)
         _notifAlternateIntervalMs.value = clamped
         prefs.edit().putInt("notifAlternateIntervalMs", clamped).apply()
-        if (_keepNotifUntilDismissed.value && activeNotifAlerts.isNotEmpty() && !alertIsPreview) {
+        if (activeNotifAlerts.isNotEmpty() && !alertIsPreview) {
             cycleActiveNotificationAlert()
         }
     }
@@ -1529,13 +1515,14 @@ class Store private constructor(private val app: Context) {
         }
         if (!_enabled.value) return
         if (rule.onlyWhenScreenOff && screenOn()) return
+        if (rule.stopWhenUnlocked && isUnlocked()) return
         if (_respectDnd.value && deviceSignals.shouldSuppressForDnd) return
         // NotificationTrigger checks this before posting here, and main checks again because the
         // phone can be lifted during that hop. Unknown or stale sensor state always fails closed.
         if (rule.onlyWhenFaceDown && !isFaceDownNow()) return
         val color = if (rule.randomColor) randomColor() else rule.color
 
-        if (_keepNotifUntilDismissed.value && !notifKey.isNullOrEmpty()) {
+        if (rule.stayUntilDismissed && !notifKey.isNullOrEmpty()) {
             activeNotifAlerts[notifKey] = ActiveNotificationAlert(notifKey, rule, color)
             val keys = activeNotifAlerts.keys.toList()
             val newIdx = keys.indexOf(notifKey)
@@ -1583,7 +1570,7 @@ class Store private constructor(private val app: Context) {
                 if (!alertIsPreview) releaseAlert()
             } else {
                 activeNotifIndex = activeNotifIndex % activeNotifAlerts.size
-                if (_keepNotifUntilDismissed.value && !alertIsPreview) {
+                if (!alertIsPreview) {
                     cycleActiveNotificationAlert()
                 }
             }
@@ -1603,7 +1590,7 @@ class Store private constructor(private val app: Context) {
         }
         activeNotifAlerts.clear()
         stopNotifAlternation()
-        if (!alertIsPreview && _keepNotifUntilDismissed.value) {
+        if (!alertIsPreview) {
             releaseAlert()
         }
     }
@@ -1659,7 +1646,7 @@ class Store private constructor(private val app: Context) {
         stopNotifAlternation()
         val interval = _notifAlternateIntervalMs.value.toLong()
         val r = Runnable {
-            if (_keepNotifUntilDismissed.value && activeNotifAlerts.isNotEmpty()) {
+            if (activeNotifAlerts.isNotEmpty()) {
                 val count = activeNotifAlerts.size
                 if (count > 1) {
                     activeNotifIndex = (activeNotifIndex + 1) % count
@@ -1718,7 +1705,7 @@ class Store private constructor(private val app: Context) {
         activeAlertScreenOffGated = false
         alertIsPreview = false
         _previewLook.value = null
-        if (_keepNotifUntilDismissed.value && activeNotifAlerts.isNotEmpty()) {
+        if (activeNotifAlerts.isNotEmpty()) {
             cycleActiveNotificationAlert()
         } else {
             pushCurrent(arm = false)       // handing the layer back must not extend the ambient window
@@ -1735,7 +1722,7 @@ class Store private constructor(private val app: Context) {
         if (activeAlert == null && notifAlternationTask == null) return
         alertExpiry?.let { main.removeCallbacks(it) }
         alertExpiry = null
-        if (!_keepNotifUntilDismissed.value) {
+        if (activeNotifAlerts.isEmpty()) {
             releaseAlert()
         } else {
             stopNotifAlternation()
@@ -1915,6 +1902,9 @@ class Store private constructor(private val app: Context) {
 
     private fun screenOn(): Boolean =
         app.getSystemService(android.os.PowerManager::class.java)?.isInteractive ?: true
+
+    fun isUnlocked(): Boolean =
+        screenOn() && app.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == false
 
     /** Android's own Battery Saver, which the user turns on to make the battery last. */
     private fun powerSaveMode(): Boolean =

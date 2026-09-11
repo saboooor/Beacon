@@ -127,7 +127,6 @@ fun AppRulesScreen(store: Store) {
 
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
-    val keepNotifUntilDismissed by store.keepNotifUntilDismissed.collectAsStateWithLifecycle()
     val notifAlternateIntervalMs by store.notifAlternateIntervalMs.collectAsStateWithLifecycle()
     var notifAccess by remember { mutableStateOf(hasNotificationAccess(ctx)) }
     var usageAccess by remember { mutableStateOf(ForegroundWatcher.hasUsageAccess(ctx)) }
@@ -271,14 +270,7 @@ fun AppRulesScreen(store: Store) {
         TextButton(onClick = { inspecting = true }) {
             ButtonLabel(stringResource(R.string.setup_inspector_button))
         }
-        ToggleRow(
-            stringResource(R.string.setup_notif_until_dismissed),
-            keepNotifUntilDismissed,
-        ) {
-            store.setKeepNotifUntilDismissed(it)
-        }
-        Caption(stringResource(R.string.setup_notif_until_dismissed_hint))
-        if (keepNotifUntilDismissed) {
+        if (rules.any { it.stayUntilDismissed }) {
             PixelSlider(
                 stringResource(R.string.setup_notif_alternate_interval),
                 notifAlternateIntervalMs.toFloat(),
@@ -1007,18 +999,10 @@ private fun RuleEditorDialog(
                         r = r.copy(ignoreSilent = it)
                     }
                     Caption(stringResource(R.string.rules_ignore_silent_hint))
-                    ToggleRow(stringResource(R.string.rules_repeat_pending), r.repeatWhilePending) {
-                        r = r.copy(repeatWhilePending = it)
+                    ToggleRow(stringResource(R.string.rules_notif_until_dismissed), r.stayUntilDismissed) {
+                        r = r.copy(stayUntilDismissed = it)
                     }
-                    if (r.repeatWhilePending) {
-                        Caption(stringResource(R.string.rules_repeat_pending_hint))
-                        PixelSlider(
-                            stringResource(R.string.rules_repeat_interval),
-                            r.repeatIntervalMs.toFloat(), 5_000f..60_000f,
-                            { r = r.copy(repeatIntervalMs = it.toInt()) },
-                            typeInSeconds = true,
-                        ) { formatDuration(it.toInt()) }
-                    }
+                    Caption(stringResource(R.string.rules_notif_until_dismissed_hint))
                     if (r.isCatchAll) {
                         TextButton(onClick = { pickingExcludedApp = true }) {
                             ButtonLabel(stringResource(R.string.rules_exclude_app))
@@ -1060,24 +1044,32 @@ private fun RuleEditorDialog(
                         shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    GatedDurationSlider(
-                        label = stringResource(R.string.rules_show_for),
-                        valueMs = r.durationMs,
-                        minMs = 2_000,
-                        safeMaxMs = Limits.WARN_ABOVE_MS,
-                        extendedMaxMs = Limits.RULE_MAX_MS,
-                        unlockLabel = stringResource(R.string.rules_allow_one_minute),
-                        warnFirst = stringResource(R.string.rules_duration_warn_first_title) to
-                            stringResource(R.string.rules_duration_warn_first_body),
-                        warnSecond = stringResource(R.string.rules_duration_warn_second_title) to
-                            stringResource(R.string.rules_duration_warn_second_body),
-                        onChange = { r = r.copy(durationMs = it) },
-                    )
+                    if (!r.stayUntilDismissed) {
+                        GatedDurationSlider(
+                            label = stringResource(R.string.rules_show_for),
+                            valueMs = r.durationMs,
+                            minMs = 2_000,
+                            safeMaxMs = Limits.WARN_ABOVE_MS,
+                            extendedMaxMs = Limits.RULE_MAX_MS,
+                            unlockLabel = stringResource(R.string.rules_allow_one_minute),
+                            warnFirst = stringResource(R.string.rules_duration_warn_first_title) to
+                                stringResource(R.string.rules_duration_warn_first_body),
+                            warnSecond = stringResource(R.string.rules_duration_warn_second_title) to
+                                stringResource(R.string.rules_duration_warn_second_body),
+                            onChange = { r = r.copy(durationMs = it) },
+                        )
+                    }
                     ToggleRow(
                         stringResource(R.string.rules_only_screen_off), r.onlyWhenScreenOff,
                     ) {
                         r = r.copy(onlyWhenScreenOff = it)
                     }
+                    ToggleRow(
+                        stringResource(R.string.rules_stop_when_unlocked), r.stopWhenUnlocked,
+                    ) {
+                        r = r.copy(stopWhenUnlocked = it)
+                    }
+                    Caption(stringResource(R.string.rules_stop_when_unlocked_hint))
                     ToggleRow(
                         label = stringResource(R.string.rules_only_face_down),
                         checked = r.onlyWhenFaceDown,

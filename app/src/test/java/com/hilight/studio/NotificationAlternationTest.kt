@@ -121,4 +121,35 @@ class NotificationAlternationTest {
         assertFalse(canFlashScreenOffRule)
         assertTrue(canFlashAlwaysRule)
     }
+
+    @Test
+    fun `stopWhenUnlocked rule suppresses flash when phone is unlocked but allows when locked`() {
+        val stopWhenUnlockedRule = rule1.copy(stopWhenUnlocked = true)
+        val normalRule = rule2.copy(stopWhenUnlocked = false)
+
+        // Case 1: Phone is unlocked
+        val phoneIsUnlocked = true
+        val canFlashWhenUnlocked1 = !(stopWhenUnlockedRule.stopWhenUnlocked && phoneIsUnlocked)
+        val canFlashWhenUnlocked2 = !(normalRule.stopWhenUnlocked && phoneIsUnlocked)
+
+        assertFalse(canFlashWhenUnlocked1)
+        assertTrue(canFlashWhenUnlocked2)
+
+        // Case 2: Phone is locked (screen on or off)
+        val phoneIsLocked = false
+        val canFlashWhenLocked1 = !(stopWhenUnlockedRule.stopWhenUnlocked && phoneIsLocked)
+        val canFlashWhenLocked2 = !(normalRule.stopWhenUnlocked && phoneIsLocked)
+
+        assertTrue(canFlashWhenLocked1)
+        assertTrue(canFlashWhenLocked2)
+    }
+
+    @Test
+    fun `stayUntilDismissed defaults to false and can be enabled per-rule`() {
+        val defaultRule = AppRule("com.test", "Test")
+        assertFalse(defaultRule.stayUntilDismissed)
+
+        val persistentRule = defaultRule.copy(stayUntilDismissed = true)
+        assertTrue(persistentRule.stayUntilDismissed)
+    }
 }
