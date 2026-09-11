@@ -857,6 +857,64 @@ public final class EngineReleaseTest {
         assertTrue(rig.lights.isSessionOpen());
     }
 
+    @Test
+    public void strobeAnimationMaintainsSessionDuringBurstAndPauseAndReleasesWhenTerminal()
+            throws Exception {
+        Rig rig = new Rig();
+        rig.finishStartupCycle();
+        Engine engine = rig.newEngine();
+        long base = 10_000;
+        rig.rendererClock.now = base;
+        engine.setState("{\"enabled\":true,\"arm\":true,\"ambientTimeoutMs\":60000,"
+                + "\"ambient\":{\"mode\":\"strobe\",\"speedMs\":1000,"
+                + "\"color\":4294967295}}");
+
+        // Flash 1 (t = 0ms, subPhase = 0.0): lit
+        rig.tick(engine, base, base);
+        assertTrue(rig.lights.isSessionOpen());
+        long cycle = rig.lights.clearCycleId();
+
+        // Intra-burst Gap 1 (t = 100ms, phase = 0.10 < 0.45, subPhase = 0.667): dark frame between flashes
+        rig.tick(engine, base + 100, base + 100);
+        assertTrue("Session must remain open during intra-burst gaps", rig.lights.isSessionOpen());
+        assertEquals(0, rig.lights.clearAttemptsUsed());
+        assertEquals(cycle, rig.lights.clearCycleId());
+
+        // Flash 2 (t = 160ms, phase = 0.16 < 0.45, subPhase = 1.067): lit
+        rig.tick(engine, base + 160, base + 160);
+        assertTrue(rig.lights.isSessionOpen());
+
+        // Intra-burst Gap 2 (t = 250ms, phase = 0.25 < 0.45, subPhase = 1.667): dark frame between flashes
+        rig.tick(engine, base + 250, base + 250);
+        assertTrue("Session must remain open during intra-burst gaps", rig.lights.isSessionOpen());
+        assertEquals(0, rig.lights.clearAttemptsUsed());
+
+        // Flash 3 (t = 320ms, phase = 0.32 < 0.45, subPhase = 2.133): lit
+        rig.tick(engine, base + 320, base + 320);
+        assertTrue(rig.lights.isSessionOpen());
+
+        // Intra-burst Gap 3 (t = 400ms, phase = 0.40 < 0.45, subPhase = 2.667): dark frame between flashes
+        rig.tick(engine, base + 400, base + 400);
+        assertTrue("Session must remain open during intra-burst gaps", rig.lights.isSessionOpen());
+        assertEquals(0, rig.lights.clearAttemptsUsed());
+
+        // Inter-cycle Pause (t = 500ms, phase = 0.50 >= 0.45): session remains open to avoid dropping next burst
+        rig.tick(engine, base + 500, base + 500);
+        assertTrue("Session must remain open during inter-cycle pause", rig.lights.isSessionOpen());
+        assertEquals(0, rig.lights.clearAttemptsUsed());
+        assertEquals(cycle, rig.lights.clearCycleId());
+
+        // Next cycle Flash 1 (t = 1000ms): lit again without session reopen overhead
+        rig.tick(engine, base + 1000, base + 1000);
+        assertTrue(rig.lights.isSessionOpen());
+
+        // Terminal release when disabled
+        engine.setState("{\"enabled\":false,\"stateRevision\":88}");
+        rig.driveToTerminal(engine, base + 2000);
+        assertFalse("Session must release when animation is disabled", rig.lights.isSessionOpen());
+        assertTrue(rig.lights.isBlackClearTerminal());
+    }
+
     private static final class Rig {
         final FakeIo io = new FakeIo();
         final FakeClock clock = new FakeClock();

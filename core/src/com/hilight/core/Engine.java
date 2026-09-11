@@ -494,6 +494,15 @@ public final class Engine {
             // darkness (explicit off, safety rest, gate expiry and disabled state) keeps the full
             // recovery path.
             if (!FrameVisibility.isVisible(output)) {
+                if (isStrobe(cfg)
+                        && lights.isSessionOpen()
+                        && !safety.isResting()
+                        && lastVisibleAttemptGeneration == stateGeneration
+                        && cfg == lastVisibleConfig) {
+                    lights.push(output);
+                    markSettled();
+                    return;
+                }
                 if (isTransientAnimationDark(cfg)
                         && !safety.isResting()
                         && lastVisibleAttemptGeneration == stateGeneration
@@ -665,6 +674,12 @@ public final class Engine {
             case "comet":
             case "wave":
             case "rainbow":
+            case "meter":
+            case "heartbeat":
+            case "bounce":
+            case "radar":
+            case "converge":
+            case "glitch":
             case "random":
                 return true;
             case "gradient":
@@ -673,6 +688,12 @@ public final class Engine {
             default:
                 return false;
         }
+    }
+
+    private static boolean isStrobe(JSONObject cfg) {
+        if (cfg == null) return false;
+        String mode = cfg.optString("mode", cfg.optString("pattern", "off"));
+        return "strobe".equals(mode);
     }
 
     private static String enumKey(Enum<?> value) {
