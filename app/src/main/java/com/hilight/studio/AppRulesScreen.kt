@@ -1003,6 +1003,14 @@ private fun RuleEditorDialog(
                         r = r.copy(stayUntilDismissed = it)
                     }
                     Caption(stringResource(R.string.rules_notif_until_dismissed_hint))
+                    if (r.stayUntilDismissed) {
+                        ToggleRow(
+                            stringResource(R.string.rules_stop_when_unlocked), r.stopWhenUnlocked,
+                        ) {
+                            r = r.copy(stopWhenUnlocked = it)
+                        }
+                        Caption(stringResource(R.string.rules_stop_when_unlocked_hint))
+                    }
                     if (r.isCatchAll) {
                         TextButton(onClick = { pickingExcludedApp = true }) {
                             ButtonLabel(stringResource(R.string.rules_exclude_app))
@@ -1064,12 +1072,6 @@ private fun RuleEditorDialog(
                     ) {
                         r = r.copy(onlyWhenScreenOff = it)
                     }
-                    ToggleRow(
-                        stringResource(R.string.rules_stop_when_unlocked), r.stopWhenUnlocked,
-                    ) {
-                        r = r.copy(stopWhenUnlocked = it)
-                    }
-                    Caption(stringResource(R.string.rules_stop_when_unlocked_hint))
                     ToggleRow(
                         label = stringResource(R.string.rules_only_face_down),
                         checked = r.onlyWhenFaceDown,

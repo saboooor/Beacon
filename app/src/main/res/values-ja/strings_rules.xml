@@ -114,12 +114,12 @@
     <string name="rules_keyword_label">この語を含む場合のみ（任意）</string>
     <!-- "Only when the screen is off" -->
     <string name="rules_only_screen_off">画面消灯時のみ</string>
-    <!-- "Don't trigger when unlocked" -->
-    <string name="rules_stop_when_unlocked">ロック解除時は点灯しない</string>
-    <string name="rules_stop_when_unlocked_hint">端末のロックが解除されている間は、通知が届いても点灯パターンを開始しません。</string>
     <!-- "Stay on until dismissed" -->
     <string name="rules_notif_until_dismissed">通知が消えるまで点灯</string>
     <string name="rules_notif_until_dismissed_hint">一定時間で消灯する代わりに、通知が消去されるまで点灯パターンを継続します。</string>
+    <!-- "Stop pattern when phone is unlocked" -->
+    <string name="rules_stop_when_unlocked">ロック解除で点灯を停止</string>
+    <string name="rules_stop_when_unlocked_hint">通知リストから消去しなくても、一度ロックを解除すると再ロック後も点灯しません。</string>
     <!-- "Only when the phone is face down" -->
     <string name="rules_only_face_down">端末を伏せたときのみ</string>
     <!-- "Time per cycle" -->

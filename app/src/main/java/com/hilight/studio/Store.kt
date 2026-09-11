@@ -605,6 +605,9 @@ class Store private constructor(private val app: Context) {
                         ScreenLifecycleAction.CANCEL_AND_REFRESH -> {
                             // Unlocking means the notification has been seen. A screen wake alone
                             // cancels only a rule that explicitly requires the screen to stay off.
+                            if (i?.action == Intent.ACTION_USER_PRESENT) {
+                                dismissUnlockedNotifications()
+                            }
                             cancelAlert()
                             refreshSuppression()
                             refreshChargingState()
@@ -1573,6 +1576,31 @@ class Store private constructor(private val app: Context) {
                 if (!alertIsPreview) {
                     cycleActiveNotificationAlert()
                 }
+            }
+        }
+    }
+
+    /**
+     * Drops any active persistent notification alerts whose rules ask to stop when the phone is unlocked.
+     */
+    fun dismissUnlockedNotifications() {
+        if (Looper.myLooper() != main.looper) {
+            main.post {
+                runCatching { dismissUnlockedNotifications() }
+                    .onFailure { Log.w(TAG, "dismiss unlocked notifications failed", it) }
+            }
+            return
+        }
+        val toRemove = activeNotifAlerts.filter { it.value.rule.stopWhenUnlocked }.keys.toList()
+        if (toRemove.isNotEmpty()) {
+            for (key in toRemove) {
+                activeNotifAlerts.remove(key)
+            }
+            if (activeNotifAlerts.isEmpty()) {
+                stopNotifAlternation()
+                if (!alertIsPreview) releaseAlert()
+            } else {
+                activeNotifIndex = activeNotifIndex % activeNotifAlerts.size
             }
         }
     }

@@ -39,6 +39,7 @@ class NotificationTrigger : NotificationListenerService() {
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == Intent.ACTION_USER_PRESENT) {
+                store.dismissUnlockedNotifications()
                 // Keep call state, but a user who unlocked should not see an immediate replay.
                 main.removeCallbacks(tick)
                 scheduleTick()

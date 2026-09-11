@@ -65,10 +65,10 @@
     <string name="rules_include_groups_hint">Left off, only their own chat lights this colour, so the group chatter they are part of stays dark.</string>
     <string name="rules_keyword_label">Only if it mentions (optional)</string>
     <string name="rules_only_screen_off">Only when the screen is off</string>
-    <string name="rules_stop_when_unlocked">Don’t trigger when unlocked</string>
-    <string name="rules_stop_when_unlocked_hint">Stops notifications from triggering the pattern while the phone is unlocked.</string>
     <string name="rules_notif_until_dismissed">Stay on until dismissed</string>
     <string name="rules_notif_until_dismissed_hint">Keeps the notification pattern playing until the notification is dismissed from the shade instead of turning off after a set duration.</string>
+    <string name="rules_stop_when_unlocked">Stop pattern when phone is unlocked</string>
+    <string name="rules_stop_when_unlocked_hint">Dismisses the pattern once the phone is unlocked, so it does not play again even when locked again.</string>
     <string name="rules_only_face_down">Only when the phone is face down</string>
     <string name="rules_time_per_cycle">Time per cycle</string>
     <string name="rules_brightness">Brightness</string>

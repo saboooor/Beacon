@@ -152,4 +152,26 @@ class NotificationAlternationTest {
         val persistentRule = defaultRule.copy(stayUntilDismissed = true)
         assertTrue(persistentRule.stayUntilDismissed)
     }
+
+    @Test
+    fun `unlocking dismisses active notifications whose rules have stopWhenUnlocked`() {
+        val map = LinkedHashMap<String, Store.ActiveNotificationAlert>()
+        val dismissOnUnlockRule = rule1.copy(stayUntilDismissed = true, stopWhenUnlocked = true)
+        val keepOnUnlockRule = rule2.copy(stayUntilDismissed = true, stopWhenUnlocked = false)
+
+        map["key1"] = Store.ActiveNotificationAlert("key1", dismissOnUnlockRule, dismissOnUnlockRule.color)
+        map["key2"] = Store.ActiveNotificationAlert("key2", keepOnUnlockRule, keepOnUnlockRule.color)
+
+        assertEquals(2, map.size)
+
+        // Simulate unlock dismissal logic
+        val toRemove = map.filter { it.value.rule.stopWhenUnlocked }.keys.toList()
+        for (key in toRemove) {
+            map.remove(key)
+        }
+
+        assertEquals(1, map.size)
+        assertEquals("key2", map.keys.first())
+        assertFalse(map.containsKey("key1"))
+    }
 }
