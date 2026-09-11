@@ -26,9 +26,9 @@ internal sealed interface UpdateCheckResult {
  */
 internal object GitHubUpdateChecker {
     private const val RELEASES_API =
-        "https://api.github.com/repos/DhananjayBhosale/hilight-studio/releases?per_page=10"
+        "https://api.github.com/repos/saboooor/Beacon/releases?per_page=10"
     private const val RELEASES_PAGE =
-        "https://github.com/DhananjayBhosale/hilight-studio/releases/tag/"
+        "https://github.com/saboooor/Beacon/releases/tag/"
 
     fun check(currentVersionName: String): UpdateCheckResult {
         var connection: HttpURLConnection? = null

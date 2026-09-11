@@ -85,8 +85,6 @@ private const val ADB_PHONE_RESET =
         "[ -n \"${'$'}live\" ] && sleep 0.1; i=${'$'}((i + 1)); done; " +
         "[ -z \"${'$'}live\" ] || exit 1"
 
-private const val DHANANJAY_TECH_URL = "https://twitter.com/Dhananjay_Tech"
-
 private const val ADB_PHONE_RESET_CMD =
     "live=1; i=0; while [ ${'$'}i -lt 65 ] && [ ${'$'}live = 1 ]; do live=0; " +
         "for d in /proc/[0-9]*; do p=${'$'}{d#/proc/}; " +
@@ -609,7 +607,7 @@ internal fun postSelfTestNotification(ctx: Context) {
         android.app.Notification.Builder(ctx, "selftest")
             .setContentTitle(ctx.getString(R.string.setup_selftest_title))
             .setContentText(ctx.getString(R.string.setup_selftest_body))
-            .setSmallIcon(R.drawable.hilight_logo)
+            .setSmallIcon(R.drawable.beacon_logo)
             .setAutoCancel(true)
             .build()
     )

@@ -15,4 +15,4 @@ discrimination, and deliberately disruptive behavior are not welcome.
 
 The project maintainer may remove comments, close discussions, or block contributors whose behavior
 does not meet this standard. To report a Code of Conduct concern, contact
-[@DhananjayBhosale](https://github.com/DhananjayBhosale) privately through GitHub.
+[@saboooor](https://github.com/saboooor) privately through GitHub.

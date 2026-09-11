@@ -25,12 +25,12 @@
     </queries>
 
     <application
-        android:icon="@mipmap/ic_hilight_studio"
-        android:roundIcon="@mipmap/ic_hilight_studio"
+        android:icon="@mipmap/ic_beacon"
+        android:roundIcon="@mipmap/ic_beacon"
         android:label="@string/app_name"
         android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
-        android:theme="@style/Theme.HiLightStudio">
+        android:theme="@style/Theme.Beacon">
 
         <activity
             android:name=".MainActivity"
@@ -60,7 +60,7 @@
         <service
             android:name=".HiLightTile"
             android:exported="true"
-            android:icon="@drawable/hilight_logo"
+            android:icon="@drawable/beacon_logo"
             android:label="@string/app_name"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>

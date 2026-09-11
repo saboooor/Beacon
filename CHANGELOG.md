@@ -12,7 +12,7 @@ All notable changes to HiLight Studio are documented here.
 - Added optional brief reminders for pending notifications, with dismissal/unlock cleanup and
   existing quiet/battery guards. Device sleep may delay reminders.
 - Added optional day-specific quiet hours while retaining the existing daily schedule.
-- Added optional charging indicators and DND activation signals, plus incoming-call indication for
+- Added optional DND activation signals, plus incoming-call indication for
   apps that supply Android's explicit incoming-call notification marker.
 - Made delayed notification tests report known blockers before their countdown, including DND.
 - Clarified that camera/microphone activity does not identify video recording. The one-minute
@@ -28,7 +28,6 @@ All notable changes to HiLight Studio are documented here.
   by quiet hours, Battery Saver, low battery, or the applicable face-down guard.
 - Split the former **When to stay dark** settings into **When HiLight can glow** and **When HiLight
   should pause**, with each live suppression reason shown beside the section that controls it.
-- Added a compact Dhananjay Tech attribution link at the top of Settings.
 
 ## [1.0.10-experimental] - 2026-08-29
 

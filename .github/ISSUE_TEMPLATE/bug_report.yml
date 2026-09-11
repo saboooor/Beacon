@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible problem with HiLight Studio.
+description: Report a reproducible problem with Beacon.
 title: "bug: "
 labels: [bug]
 body:

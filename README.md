@@ -9,8 +9,6 @@ Control the eight-LED HiLight array on Pixel 11 Pro devices.
 [![Latest release](https://img.shields.io/github/v/release/saboooor/Beacon?include_prereleases&label=release)](https://github.com/saboooor/Beacon/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2f81f7.svg)](LICENSE)
 
-<h2><strong>Now available on the Play Store. <a href="https://groups.google.com/g/apps-beta-testing-dhananjaytech">Join this group first</a> and then <a href="https://play.google.com/apps/testing/com.highlight.studio">download the app from the Play Store</a>.</strong></h2>
-
 > [!IMPORTANT]
 > Beacon is experimental and supports only the Pixel 11 Pro, Pixel 11 Pro XL, and Pixel 11 Pro Fold on Android 17 (API 37). It is not affiliated with or endorsed by Google.
 
@@ -189,7 +187,7 @@ Requirements:
 
 ```bash
 git clone https://github.com/saboooor/Beacon.git
-cd hilight-studio
+cd beacon
 ./gradlew :app:testDebugUnitTest :app:build :app:lint
 ```
 

@@ -59,7 +59,7 @@ class NotificationTrigger : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         // Android reconnects an approved notification listener after boot. Touching Store here
-        // restores persisted While open rules without requiring the user to open HiLight Studio or
+        // restores persisted While open rules without requiring the user to open HLight Studiio or
         // wait for an unrelated notification first.
         store.syncForegroundWatcher()
         store.mediaTracker.startListening()

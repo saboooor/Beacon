@@ -194,7 +194,7 @@ class ForegroundWatcher : Service() {
                     }
                 )
             )
-            .setSmallIcon(R.drawable.hilight_logo)
+            .setSmallIcon(R.drawable.beacon_logo)
             .setOngoing(true)
             .build()
     }

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for improving HiLight Studio. The project is experimental and targets only the Pixel 11 Pro,
+Thanks for improving Beacon. The project is experimental and targets only the Pixel 11 Pro,
 Pro XL, and Pro Fold on Android 17.
 
 ## Before opening a pull request
