@@ -91,5 +91,9 @@
     <string name="media_sample_badge">Sample</string>
     <string name="style_media_button">Media</string>
     <string name="style_use_media_colors">Use media colors</string>
+    <string name="media_colors_optimized">Optimized for LEDs</string>
+    <string name="media_colors_original">Original artwork colors</string>
+    <string name="media_tap_for_original">Tap colors to view original</string>
+    <string name="media_tap_for_optimized">Tap colors to view optimized</string>
 
 </resources>

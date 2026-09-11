@@ -17,13 +17,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,10 +59,13 @@ fun MediaCard(store: Store) {
 
         if (currentMedia != null) {
             val media = currentMedia!!
-            val previewAmbient = remember(media.colors) {
+            var showRawColors by remember { mutableStateOf(false) }
+            val displayColors = if (showRawColors) media.rawColors else media.colors
+
+            val previewAmbient = remember(displayColors) {
                 Ambient(
                     pattern = Pattern.CUSTOM,
-                    perLed = media.colors,
+                    perLed = displayColors,
                     rotateMs = 1500,
                     rotateFade = true,
                 )
@@ -133,22 +139,54 @@ fun MediaCard(store: Store) {
 
             Spacer(Modifier.height(8.dp))
 
-            // 8 Color Swatches
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            // 8 Color Swatches (click to toggle between optimized and raw artwork colors)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { showRawColors = !showRawColors }
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                media.colors.forEachIndexed { _, c ->
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .aspectRatio(1f)
-                            .background(Color(c), CircleShape)
-                            .border(
-                                1.5.dp,
-                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                                CircleShape,
-                            ),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    displayColors.forEachIndexed { _, c ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .background(Color(c), CircleShape)
+                                .border(
+                                    1.5.dp,
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                                    CircleShape,
+                                ),
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(
+                            if (showRawColors) R.string.media_colors_original
+                            else R.string.media_colors_optimized
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = stringResource(
+                            if (showRawColors) R.string.media_tap_for_optimized
+                            else R.string.media_tap_for_original
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
             }

@@ -21,7 +21,7 @@ class GitHubUpdateCheckerTest {
         assertEquals("1.0.7", available.release.versionName)
         assertEquals("v1.0.7-experimental", available.release.tagName)
         assertEquals(
-            "https://github.com/DhananjayBhosale/hilight-studio/releases/tag/v1.0.7-experimental",
+            "https://github.com/saboooor/Beacon/releases/tag/v1.0.7-experimental",
             available.release.pageUrl,
         )
     }

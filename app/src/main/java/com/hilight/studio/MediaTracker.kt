@@ -28,6 +28,7 @@ data class MediaTrackInfo(
     val isPlaying: Boolean,
     val artwork: Bitmap?,
     val colors: List<Int>, // 8 LED colors
+    val rawColors: List<Int> = colors, // 8 LED colors before optimization
     val primaryColor: Int,
     val secondaryColor: Int,
 )
@@ -39,6 +40,7 @@ internal data class TrackedMediaSource(
     var artist: String? = null,
     var artwork: Bitmap? = null,
     var colors: List<Int> = emptyList(),
+    var rawColors: List<Int> = emptyList(),
     var primaryColor: Int = MediaTracker.DEFAULT_COLOR,
     var secondaryColor: Int = MediaTracker.DEFAULT_COLOR,
     var isPlaying: Boolean = false,
@@ -206,11 +208,13 @@ class MediaTracker(
         if (artist != null) source.artist = artist
         if (artwork != null) {
             source.artwork = artwork
-            source.colors = extractLedColors(artwork)
+            source.rawColors = extractRawLedColors(artwork)
+            source.colors = source.rawColors.map { ensureLedVisible(it) }
             source.primaryColor = source.colors.firstOrNull() ?: DEFAULT_COLOR
             source.secondaryColor = source.colors.getOrNull(4) ?: source.colors.getOrNull(1) ?: DEFAULT_COLOR
         } else if (source.colors.isEmpty()) {
-            source.colors = fallbackLedColors((title ?: source.packageName).hashCode())
+            source.rawColors = fallbackLedColors((title ?: source.packageName).hashCode())
+            source.colors = source.rawColors
             source.primaryColor = source.colors.firstOrNull() ?: DEFAULT_COLOR
             source.secondaryColor = source.colors.getOrNull(4) ?: source.colors.getOrNull(1) ?: DEFAULT_COLOR
         }
@@ -297,15 +301,18 @@ class MediaTracker(
         if (artist != null) source.artist = artist
         if (artwork != null) {
             source.artwork = artwork
-            source.colors = extractLedColors(artwork)
+            source.rawColors = extractRawLedColors(artwork)
+            source.colors = source.rawColors.map { ensureLedVisible(it) }
             source.primaryColor = source.colors.firstOrNull() ?: DEFAULT_COLOR
             source.secondaryColor = source.colors.getOrNull(4) ?: source.colors.getOrNull(1) ?: DEFAULT_COLOR
         } else if (source.colors.isEmpty()) {
             val notifColor = if (notif.color != 0) notif.color else null
-            source.colors = if (notifColor != null) {
-                paletteFromSingleColor(notifColor)
+            if (notifColor != null) {
+                source.rawColors = rawPaletteFromSingleColor(notifColor)
+                source.colors = paletteFromSingleColor(notifColor)
             } else {
-                fallbackLedColors((title ?: pkg).hashCode())
+                source.rawColors = fallbackLedColors((title ?: pkg).hashCode())
+                source.colors = source.rawColors
             }
             source.primaryColor = source.colors.firstOrNull() ?: DEFAULT_COLOR
             source.secondaryColor = source.colors.getOrNull(4) ?: source.colors.getOrNull(1) ?: DEFAULT_COLOR
@@ -362,13 +369,15 @@ class MediaTracker(
             return
         }
 
+        val fallback = fallbackLedColors((chosenSource.title ?: chosenSource.packageName).hashCode())
         val info = MediaTrackInfo(
             title = chosenSource.title,
             artist = chosenSource.artist,
             packageName = chosenSource.packageName,
             isPlaying = chosenSource.isPlaying,
             artwork = chosenSource.artwork,
-            colors = chosenSource.colors.ifEmpty { fallbackLedColors((chosenSource.title ?: chosenSource.packageName).hashCode()) },
+            colors = chosenSource.colors.ifEmpty { fallback },
+            rawColors = chosenSource.rawColors.ifEmpty { chosenSource.colors.ifEmpty { fallback } },
             primaryColor = chosenSource.primaryColor,
             secondaryColor = chosenSource.secondaryColor,
         )
@@ -383,7 +392,8 @@ class MediaTracker(
         } else {
             sampleModeActive = true
             val sampleArtwork = createSampleArtwork()
-            val colors = extractLedColors(sampleArtwork)
+            val rawColors = extractRawLedColors(sampleArtwork)
+            val colors = rawColors.map { ensureLedVisible(it) }
             val sampleInfo = MediaTrackInfo(
                 title = "Starfall Symphony",
                 artist = "Pixel Wave",
@@ -391,6 +401,7 @@ class MediaTracker(
                 isPlaying = true,
                 artwork = sampleArtwork,
                 colors = colors,
+                rawColors = rawColors,
                 primaryColor = colors[0],
                 secondaryColor = colors[4],
             )
@@ -430,6 +441,13 @@ class MediaTracker(
          * Downsamples the image to 48x48 for performance and analyzes HSV distributions.
          */
         fun extractLedColors(bitmap: Bitmap): List<Int> {
+            return extractRawLedColors(bitmap).map { ensureLedVisible(it) }
+        }
+
+        /**
+         * Extracts 8 raw LED colors from a Bitmap album cover before LED visibility/brightness optimization.
+         */
+        fun extractRawLedColors(bitmap: Bitmap): List<Int> {
             val size = 48
             val scaled = if (bitmap.width != size || bitmap.height != size) {
                 runCatching { Bitmap.createScaledBitmap(bitmap, size, size, true) }.getOrDefault(bitmap)
@@ -437,19 +455,16 @@ class MediaTracker(
 
             val pixels = IntArray(scaled.width * scaled.height)
             scaled.getPixels(pixels, 0, scaled.width, 0, 0, scaled.width, scaled.height)
-            return extractLedColorsFromPixels(pixels)
+            return extractRawLedColorsFromPixels(pixels)
         }
 
         /** Internal representation of a color bin candidate with its pixel frequency. */
         private data class ColorCandidate(val color: Int, val count: Int)
 
         /**
-         * Extracts the true dominant colors from a pixel buffer using 15-bit color quantization
-         * and perceptual diversity filtering.
-         *
-         * Preserves the actual colors and tones of the artwork instead of forcing synthetic neon hues.
+         * Extracts the true dominant colors from a pixel buffer before LED visibility/brightness optimization.
          */
-        fun extractLedColorsFromPixels(pixels: IntArray): List<Int> {
+        fun extractRawLedColorsFromPixels(pixels: IntArray): List<Int> {
             if (pixels.isEmpty()) return fallbackLedColors(42)
 
             // 15-bit color quantization: 5 bits per RGB channel (32x32x32 = 32,768 bins)
@@ -531,7 +546,7 @@ class MediaTracker(
             // Map the true dominant colors across the 8 LEDs
             val n = distinctColors.size
             return (0 until LED_COUNT).map { i ->
-                val c = when {
+                when {
                     n == 1 -> distinctColors[0]
                     n == 2 -> mixColors(distinctColors[0], distinctColors[1], i.toFloat() / (LED_COUNT - 1))
                     else -> {
@@ -542,8 +557,15 @@ class MediaTracker(
                         mixColors(distinctColors[idxA], distinctColors[idxB], frac)
                     }
                 }
-                ensureLedVisible(c)
             }
+        }
+
+        /**
+         * Extracts the true dominant colors from a pixel buffer using 15-bit color quantization
+         * and perceptual diversity filtering, optimized for LED array display.
+         */
+        fun extractLedColorsFromPixels(pixels: IntArray): List<Int> {
+            return extractRawLedColorsFromPixels(pixels).map { ensureLedVisible(it) }
         }
 
         fun mixColors(c1: Int, c2: Int, t: Float): Int {
@@ -616,7 +638,7 @@ class MediaTracker(
                 ((b + m) * 255f).toInt().coerceIn(0, 255)
         }
 
-        fun paletteFromSingleColor(seedColor: Int): List<Int> {
+        fun rawPaletteFromSingleColor(seedColor: Int): List<Int> {
             val hsv = FloatArray(3)
             colorToHsv(seedColor, hsv)
             val baseHue = hsv[0]
@@ -624,8 +646,12 @@ class MediaTracker(
             val value = hsv[2]
             return (0 until LED_COUNT).map { i ->
                 val hue = (baseHue + (i - (LED_COUNT - 1) / 2f) * 4f + 360f) % 360f
-                ensureLedVisible(hsvToColor(hue, sat, value))
+                hsvToColor(hue, sat, value)
             }
+        }
+
+        fun paletteFromSingleColor(seedColor: Int): List<Int> {
+            return rawPaletteFromSingleColor(seedColor).map { ensureLedVisible(it) }
         }
 
         fun fallbackLedColors(seed: Int): List<Int> {

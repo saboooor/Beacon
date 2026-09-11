@@ -78,6 +78,29 @@ class MediaTrackerTest {
     }
 
     @Test
+    fun `extractRawLedColorsFromPixels returns colors before optimization`() {
+        // Pastel pink artwork: R=255, G=180, B=192 (pastel, low saturation ~0.29)
+        val pastelPink = 0xFFFFB4C0.toInt()
+        val pixels = IntArray(50) { pastelPink }
+
+        val raw = MediaTracker.extractRawLedColorsFromPixels(pixels)
+        val optimized = MediaTracker.extractLedColorsFromPixels(pixels)
+
+        assertEquals(8, raw.size)
+        assertEquals(8, optimized.size)
+
+        // Raw colors preserve the unboosted pastel values
+        val rawColor = raw[0]
+        val rawG = (rawColor ushr 8) and 0xFF
+        assertTrue("Raw color preserves higher green channel of pastel", rawG > 150)
+
+        // Optimized colors boost the saturation so it is vivid on LEDs
+        val optColor = optimized[0]
+        val optG = (optColor ushr 8) and 0xFF
+        assertTrue("Optimized color has lower green for higher saturation", optG < rawG)
+    }
+
+    @Test
     fun `extractLedColorsFromPixels on monochromatic artwork produces graceful glow`() {
         // Synthesize black & white album art
         val pixels = IntArray(100) { i ->

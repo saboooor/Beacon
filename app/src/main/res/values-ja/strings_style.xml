@@ -122,5 +122,9 @@
     <string name="media_sample_badge">サンプル</string>
     <string name="style_media_button">メディア</string>
     <string name="style_use_media_colors">メディアの色を使用</string>
+    <string name="media_colors_optimized">LED向け最適化済み</string>
+    <string name="media_colors_original">元のアートワークの色</string>
+    <string name="media_tap_for_original">タップして元の色を表示</string>
+    <string name="media_tap_for_optimized">タップして最適化された色を表示</string>
 
 </resources>
