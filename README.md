@@ -16,7 +16,18 @@ Control the eight-LED HiLight array on Pixel 11 Pro devices.
   <img src="docs/media/screen-style1.JPEG" alt="Style tab with presets, patterns, and colour controls" width="420">
 </p>
 
-## Features
+## Features added in Beacon
+
+- Seven new animated patterns: Meter, Strobe, Heartbeat, Bounce, Radar, Converge, and Glitch, with pattern rotation fade
+- Media-reactive lighting: real-time playback tracking and album artwork palette extraction (vibrant and raw modes)
+- Battery charging indicator: charge percentage visualization across the eight LEDs with custom gradients and breathing pulse
+- Hardware-accurate 8-diode preview in the titlebar showing physical emitter layout, live status, and device model
+- Persistent notification alerts ("Stay on until dismissed") with round-robin cycling when multiple notifications are pending
+- Unlock-to-dismiss notification patterns: alerts stop once the phone is unlocked and do not resume when re-locked
+- Per-app rules JSON export and import
+- Safety limits bypass toggle to disable duration, brightness taper, and duty-cycle limits
+
+## Core Features from HiLight Studio
 
 - Solid colours and animated patterns across all eight LEDs
 - Per-app rules for foreground use and notifications
