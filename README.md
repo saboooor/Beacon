@@ -210,6 +210,8 @@ Build an installable developer APK with:
 
 The APK is written under `app/build/outputs/apk/debug/`. You may fork the repository, change the source, and build your own version under the terms of the MIT License.
 
+I use AI tools like Codex, Claude Code, Cursor, and Antigravity to build HiLight Studio.
+
 ## Contributing
 
 Issues and pull requests are welcome. Hardware reports should include the Pixel model, Android build,

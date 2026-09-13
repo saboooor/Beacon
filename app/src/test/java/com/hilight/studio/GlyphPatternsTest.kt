@@ -1,88 +1,63 @@
 package com.hilight.studio
 
-import org.json.JSONObject
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GlyphPatternsTest {
-
-    private val javaRenderer = com.hilight.core.Renderer()
-
-    private fun isFrameVisible(frame: IntArray): Boolean {
-        for (color in frame) {
-            val rgb = ((color shr 16) and 0xFF) + ((color shr 8) and 0xFF) + (color and 0xFF)
-            if (rgb > 12) return true
-        }
-        return false
-    }
+    private val patterns = listOf(
+        Pattern.METER, Pattern.STROBE, Pattern.HEARTBEAT,
+        Pattern.BOUNCE, Pattern.RADAR, Pattern.CONVERGE, Pattern.GLITCH,
+    )
+    private val core = com.hilight.core.Renderer()
 
     @Test
-    fun allNewPatternsProduceValidFramesInJavaRenderer() {
-        val patterns = listOf("meter", "strobe", "heartbeat", "bounce", "radar", "converge", "glitch")
-        val color = 0xFF00E676L
-        val speedMs = 1000L
-
-        for (mode in patterns) {
-            val cfg = JSONObject().apply {
-                put("mode", mode)
-                put("color", color)
-                put("speedMs", speedMs)
-                put("brightness", 1.0)
-            }
-
-            var hasVisibleFrame = false
-            for (t in 0..1000 step 50) {
-                val frame = javaRenderer.frame(cfg, t.toLong(), 8)
-                assertEquals("Frame size must be 8 for mode $mode", 8, frame.size)
-                for (pixel in frame) {
-                    val alpha = (pixel ushr 24) and 0xFF
-                    val red = (pixel ushr 16) and 0xFF
-                    val green = (pixel ushr 8) and 0xFF
-                    val blue = pixel and 0xFF
-                    assertTrue("Alpha must be 0 or 255", alpha == 0 || alpha == 0xFF)
-                    assertTrue("Red channel in bounds", red in 0..255)
-                    assertTrue("Green channel in bounds", green in 0..255)
-                    assertTrue("Blue channel in bounds", blue in 0..255)
+    fun `new patterns render the same preview and device frames across timing and brightness`() {
+        for (pattern in patterns) for (speed in listOf(60, 1000, 3370)) {
+            for (brightness in listOf(0f, 0.4f, 1f)) {
+                val look = Ambient(
+                    pattern = pattern, speedMs = speed, brightness = brightness,
+                    color = 0xFF20E676.toInt(),
+                )
+                for (time in (0L..7000L step 37L) + listOf(60_000L, 8_000_000_000L)) {
+                    assertArrayEquals(
+                        "$pattern speed=$speed brightness=$brightness time=$time",
+                        core.frame(look.toJson(), time, LED_COUNT), Renderer.frame(pattern, time, look),
+                    )
                 }
-                if (isFrameVisible(frame)) {
-                    hasVisibleFrame = true
-                }
+                assertEquals(look, Ambient.fromJson(look.toPrefsJson()))
             }
-            assertTrue("Pattern $mode should produce at least one visible frame during cycle", hasVisibleFrame)
         }
     }
 
+    private fun frame(pattern: Pattern, time: Long): IntArray = core.frame(
+        Ambient(pattern = pattern, color = 0xFFFFFFFF.toInt(), brightness = 1f, speedMs = 1000).toJson(),
+        time, LED_COUNT,
+    )
+
+    private fun lit(frame: IntArray) = frame.count { it and 0xFFFFFF != 0 }
+
     @Test
-    fun allNewPatternsProduceValidFramesInKotlinPreview() {
-        val glyphPatterns = listOf(
-            Pattern.METER,
-            Pattern.STROBE,
-            Pattern.HEARTBEAT,
-            Pattern.BOUNCE,
-            Pattern.RADAR,
-            Pattern.CONVERGE,
-            Pattern.GLITCH,
-        )
+    fun `meter fills progressively and pulsed patterns include a dark rest`() {
+        assertEquals(0, lit(frame(Pattern.METER, 0)))
+        assertEquals(4, lit(frame(Pattern.METER, 375)))
+        assertEquals(8, lit(frame(Pattern.METER, 750)))
+        assertEquals(0, lit(frame(Pattern.METER, 1000)))
+        assertEquals(8, lit(frame(Pattern.STROBE, 0)))
+        assertEquals(0, lit(frame(Pattern.STROBE, 500)))
+        assertTrue(lit(frame(Pattern.HEARTBEAT, 60)) > 0)
+        assertEquals(0, lit(frame(Pattern.HEARTBEAT, 650)))
+    }
 
-        for (pattern in glyphPatterns) {
-            val ambient = Ambient(
-                pattern = pattern,
-                color = 0xFF00E5FF.toInt(),
-                speedMs = 1000,
-                brightness = 1f,
-            )
-
-            var hasVisibleFrame = false
-            for (t in 0..1000 step 50) {
-                val frame = Renderer.frame(pattern, t.toLong(), ambient)
-                assertEquals(8, frame.size)
-                if (isFrameVisible(frame)) {
-                    hasVisibleFrame = true
-                }
-            }
-            assertTrue("Preview for $pattern should produce at least one visible frame", hasVisibleFrame)
+    @Test
+    fun `bounce returns to its origin and converge remains symmetric`() {
+        assertArrayEquals(frame(Pattern.BOUNCE, 0).reversedArray(), frame(Pattern.BOUNCE, 500))
+        assertArrayEquals(frame(Pattern.BOUNCE, 0), frame(Pattern.BOUNCE, 1000))
+        for (time in 0L..1000L step 25L) {
+            val frame = frame(Pattern.CONVERGE, time)
+            assertArrayEquals(frame.reversedArray(), frame)
         }
     }
 
@@ -120,7 +95,7 @@ class GlyphPatternsTest {
         val randomFrame = Renderer.frame(Pattern.RANDOM, 0L, randomAmbient)
 
         // Ensure random frame is visible and not identical to a rainbow wheel
-        assertTrue(isFrameVisible(randomFrame))
+        assertTrue(lit(randomFrame) > 0)
         var matchesRainbow = true
         for (i in 0 until 8) {
             if (rainbowFrame[i] != randomFrame[i]) {

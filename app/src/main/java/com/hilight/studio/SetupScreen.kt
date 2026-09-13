@@ -145,6 +145,7 @@ fun SetupScreen(store: Store) {
     val transport by store.transport.collectAsStateWithLifecycle()
     val active by store.activeTransport.collectAsStateWithLifecycle()
     val shizukuState by store.shizuku.state.collectAsStateWithLifecycle()
+    val notifyShizukuLoss by store.shizukuRecovery.enabled.collectAsStateWithLifecycle()
     val rootState by store.root.state.collectAsStateWithLifecycle()
     val priority by store.priority.collectAsStateWithLifecycle()
     val dynamicColor by store.dynamicColor.collectAsStateWithLifecycle()
@@ -431,6 +432,11 @@ fun SetupScreen(store: Store) {
         }
     }
 
+    PixelCard {
+        ToggleRow(stringResource(R.string.shizuku_recovery_setting), notifyShizukuLoss,
+            onChange = store::setNotifyShizukuLoss)
+        Caption(stringResource(R.string.shizuku_recovery_help))
+    }
 
 
     PixelCard {
