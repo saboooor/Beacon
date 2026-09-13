@@ -67,7 +67,7 @@ import kotlinx.coroutines.withContext
  * four-second stop path. Launch is in the same phone-shell command and is skipped on any survivor,
  * so copying the setup command cannot create a second writer after a failed reset.
  */
-private const val ADB_PHONE_RESET =
+private val ADB_PHONE_RESET =
     "live=1; i=0; while [ ${'$'}i -lt 65 ] && [ -n \"${'$'}live\" ]; do live=\"\"; " +
         "for d in /proc/[0-9]*; do p=${'$'}{d#/proc/}; " +
         "c=${'$'}(tr \"\\000\" \" \" < ${'$'}d/cmdline 2>/dev/null); " +
@@ -80,12 +80,13 @@ private const val ADB_PHONE_RESET =
         "[ \"${'$'}x\" = app_process32 ] || [ \"${'$'}x\" = app_process64 ]; } && " +
         "[ \"${'$'}{2:-x}\" = / ] && " +
         "[ \"${'$'}{3:-x}\" = com.hilight.core.AdbHelper ]; } || " +
+        "[ \"${'$'}{1:-x}\" = ${BuildConfig.APPLICATION_ID}:hilight ] || " +
         "[ \"${'$'}{1:-x}\" = com.hilight.studio:hilight ]; then " +
         "kill -TERM ${'$'}p 2>/dev/null || exit 1; live=1; fi; done; " +
         "[ -n \"${'$'}live\" ] && sleep 0.1; i=${'$'}((i + 1)); done; " +
         "[ -z \"${'$'}live\" ] || exit 1"
 
-private const val ADB_PHONE_RESET_CMD =
+private val ADB_PHONE_RESET_CMD =
     "live=1; i=0; while [ ${'$'}i -lt 65 ] && [ ${'$'}live = 1 ]; do live=0; " +
         "for d in /proc/[0-9]*; do p=${'$'}{d#/proc/}; " +
         "c=${'$'}(tr '\\000' ' ' < ${'$'}d/cmdline 2>/dev/null); set -- ${'$'}c; " +
@@ -97,12 +98,13 @@ private const val ADB_PHONE_RESET_CMD =
         "[ ${'$'}x = app_process32 ] || [ ${'$'}x = app_process64 ]; } && " +
         "[ ${'$'}{2:-x} = / ] && " +
         "[ ${'$'}{3:-x} = com.hilight.core.AdbHelper ]; } || " +
+        "[ ${'$'}{1:-x} = ${BuildConfig.APPLICATION_ID}:hilight ] || " +
         "[ ${'$'}{1:-x} = com.hilight.studio:hilight ]; then " +
         "kill -TERM ${'$'}p 2>/dev/null || exit 1; live=1; fi; done; " +
         "[ ${'$'}live = 1 ] && sleep 0.1; i=${'$'}((i + 1)); done; " +
         "[ ${'$'}live = 0 ] || exit 1"
 
-const val ADB_RESET =
+val ADB_RESET =
     "adb shell '$ADB_PHONE_RESET'"
 
 /**
@@ -118,20 +120,20 @@ const val ADB_RESET =
  * Quoting keeps `|`, parentheses, redirects, and `&` away from cmd.exe, while cmd.exe leaves `$`
  * alone, so the phone receives and expands the command substitution.
  */
-const val ADB_COMMAND =
+val ADB_COMMAND =
     "adb shell '$ADB_PHONE_RESET; " +
         "instance=adb-${'$'}(cat /proc/sys/kernel/random/uuid); " +
-        "CLASSPATH=${'$'}(pm path com.hilight.studio | head -1 | cut -d: -f2) " +
+        "CLASSPATH=${'$'}(pm path ${BuildConfig.APPLICATION_ID} | head -1 | cut -d: -f2) " +
         "nohup app_process / com.hilight.core.AdbHelper --owner adb " +
-        "--instance \"${'$'}instance\" --exclusive > /data/local/tmp/hilight.log 2>&1 &'"
+        "--instance \"${'$'}instance\" --exclusive --dir \"/storage/emulated/0/Android/data/${BuildConfig.APPLICATION_ID}/files/hilight\" > /data/local/tmp/hilight.log 2>&1 &'"
 
 /** The same pair for Windows Command Prompt, which does not understand single quotes. */
-const val ADB_COMMAND_CMD =
+val ADB_COMMAND_CMD =
     "adb shell \"$ADB_PHONE_RESET_CMD; " +
         "instance=adb-${'$'}(cat /proc/sys/kernel/random/uuid); " +
-        "CLASSPATH=${'$'}(pm path com.hilight.studio | head -1 | cut -d: -f2) " +
+        "CLASSPATH=${'$'}(pm path ${BuildConfig.APPLICATION_ID} | head -1 | cut -d: -f2) " +
         "nohup app_process / com.hilight.core.AdbHelper --owner adb " +
-        "--instance ${'$'}instance --exclusive > /data/local/tmp/hilight.log 2>&1 &\""
+        "--instance ${'$'}instance --exclusive --dir /storage/emulated/0/Android/data/${BuildConfig.APPLICATION_ID}/files/hilight > /data/local/tmp/hilight.log 2>&1 &\""
 
 @Composable
 fun SetupScreen(store: Store) {

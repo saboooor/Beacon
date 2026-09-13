@@ -44,7 +44,7 @@ public final class AdbHelper {
     private static final int ROOT_UID = 0;
     private static final int SHELL_UID = 2000;
     private static final String DEFAULT_DIR =
-            "/storage/emulated/0/Android/data/com.hilight.studio/files/hilight";
+            "/storage/emulated/0/Android/data/ca.saboor.beacon/files/hilight";
     static final String SINGLETON_LOCK_PATH = "/data/local/tmp/hilight-renderer.lock";
 
     private final File stateFile;

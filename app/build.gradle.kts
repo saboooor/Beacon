@@ -25,7 +25,7 @@ android {
     compileSdk { version = release(37) { minorApiLevel = 0 } }
 
     defaultConfig {
-        applicationId = "com.hilight.studio"
+        applicationId = "ca.saboor.beacon"
         // HiLight is a Pixel 11 / Android 17 feature. Keeping this floor aligned with the
         // supported hardware prevents installation on devices the renderer cannot support.
         minSdk = 37
