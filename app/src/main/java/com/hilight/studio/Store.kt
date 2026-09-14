@@ -1530,6 +1530,7 @@ class Store private constructor(private val app: Context) {
         rule: AppRule,
         notifKey: String? = null,
         owner: String? = notifKey?.let { "notification:$it" },
+        notifPkg: String? = null,
     ) {
         // The notification listener calls this from its own thread, while the alert slot below, its
         // expiry callback and every other push are main-thread state. Hopping once here keeps the top
@@ -1538,7 +1539,7 @@ class Store private constructor(private val app: Context) {
         // stuck on. The bridge write this ends in already happens on main for every slider the user
         // moves, so it is not a new cost.
         if (Looper.myLooper() != main.looper) {
-            main.post { runCatching { fireAlert(rule, notifKey, owner) }.onFailure { Log.w(TAG, "alert failed", it) } }
+            main.post { runCatching { fireAlert(rule, notifKey, owner, notifPkg) }.onFailure { Log.w(TAG, "alert failed", it) } }
             return
         }
         if (!_enabled.value) return
@@ -1548,7 +1549,14 @@ class Store private constructor(private val app: Context) {
         // NotificationTrigger checks this before posting here, and main checks again because the
         // phone can be lifted during that hop. Unknown or stale sensor state always fails closed.
         if (rule.onlyWhenFaceDown && !isFaceDownNow()) return
-        val color = if (rule.randomColor) randomColor() else rule.color
+        val color = when {
+            rule.randomColor -> randomColor()
+            rule.appColor -> {
+                val targetPkg = if (rule.isCatchAll) (notifPkg ?: rule.pkg) else rule.pkg
+                AppColor.extractAppColor(app, targetPkg) ?: rule.color
+            }
+            else -> rule.color
+        }
 
         if (rule.stayUntilDismissed && !notifKey.isNullOrEmpty()) {
             activeNotifAlerts[notifKey] = ActiveNotificationAlert(notifKey, rule, color)
@@ -1793,7 +1801,14 @@ class Store private constructor(private val app: Context) {
             return
         }
         if (foregroundOverride?.first == pkg) return
-        val color = if (rule.randomColor) randomColor() else rule.color
+        val color = when {
+            rule.randomColor -> randomColor()
+            rule.appColor -> {
+                val targetPkg = if (rule.isCatchAll) pkg else rule.pkg
+                AppColor.extractAppColor(app, targetPkg) ?: rule.color
+            }
+            else -> rule.color
+        }
         foregroundOverride = pkg to Bridge.lookAlertJson(
             id = Bridge.nextAlertId(),
             look = rule.effectiveLook(color),

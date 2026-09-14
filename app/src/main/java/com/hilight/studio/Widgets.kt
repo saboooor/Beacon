@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,8 +26,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -48,6 +52,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -190,6 +195,10 @@ fun ColorPickerDialog(
     title: String,
     onDismiss: () -> Unit,
     onColorSelected: (Int) -> Unit,
+    appColor: Int? = null,
+    appIcon: ImageBitmap? = null,
+    isAppColorSelected: Boolean = false,
+    onSelectAppColor: (() -> Unit)? = null,
 ) {
     val initialHsv = remember(initialColor) {
         FloatArray(3).also { android.graphics.Color.colorToHSV(initialColor, it) }
@@ -197,6 +206,7 @@ fun ColorPickerDialog(
     var hue by remember(initialColor) { mutableFloatStateOf(initialHsv[0]) }
     var sat by remember(initialColor) { mutableFloatStateOf(initialHsv[1]) }
     var value by remember(initialColor) { mutableFloatStateOf(initialHsv[2]) }
+    var selectedIsAppColor by remember(isAppColorSelected) { mutableStateOf(isAppColorSelected) }
 
     val currentColor = remember(hue, sat, value) {
         android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, value))
@@ -230,6 +240,7 @@ fun ColorPickerDialog(
                     onSatValChange = { s, v ->
                         sat = s
                         value = v
+                        selectedIsAppColor = false
                     },
                 )
 
@@ -263,7 +274,10 @@ fun ColorPickerDialog(
                     Slider(
                         value = hue,
                         valueRange = 0f..360f,
-                        onValueChange = { hue = it },
+                        onValueChange = {
+                            hue = it
+                            selectedIsAppColor = false
+                        },
                         colors = SliderDefaults.colors(
                             thumbColor = Color.White,
                             activeTrackColor = Color.Transparent,
@@ -305,6 +319,7 @@ fun ColorPickerDialog(
                                     hue = hsv[0]
                                     sat = hsv[1]
                                     value = hsv[2]
+                                    selectedIsAppColor = isAppColorSelected
                                 }
                         )
                     }
@@ -322,6 +337,7 @@ fun ColorPickerDialog(
                                     hue = newHsv[0]
                                     sat = newHsv[1]
                                     value = newHsv[2]
+                                    selectedIsAppColor = false
                                 }
                             }
                         },
@@ -338,9 +354,60 @@ fun ColorPickerDialog(
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    if (appColor != null) {
+                        val selected = selectedIsAppColor
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color(appColor))
+                                .border(
+                                    if (selected) 2.5.dp else 1.dp,
+                                    if (selected) MaterialTheme.colorScheme.onSurface
+                                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                    CircleShape,
+                                )
+                                .clickable {
+                                    val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(appColor, it) }
+                                    hue = hsv[0]
+                                    sat = hsv[1]
+                                    value = hsv[2]
+                                    selectedIsAppColor = true
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (appIcon != null) {
+                                Image(
+                                    bitmap = appIcon,
+                                    contentDescription = stringResource(R.string.rules_app_colour),
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            } else {
+                                val r = (appColor shr 16) and 0xFF
+                                val g = (appColor shr 8) and 0xFF
+                                val b = appColor and 0xFF
+                                val isDark = (0.299 * r + 0.587 * g + 0.114 * b) < 140
+                                Icon(
+                                    Icons.Rounded.Apps,
+                                    contentDescription = stringResource(R.string.rules_app_colour),
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (isDark) Color.White else Color.Black,
+                                )
+                            }
+                        }
+
+                        Box(
+                            Modifier
+                                .height(24.dp)
+                                .width(1.dp)
+                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        )
+                    }
+
                     PRESET_COLORS.forEach { c ->
-                        val selected = (c and 0xFFFFFF) == (currentColor and 0xFFFFFF)
+                        val selected = !selectedIsAppColor && ((c and 0xFFFFFF) == (currentColor and 0xFFFFFF))
                         Box(
                             Modifier
                                 .size(32.dp)
@@ -357,6 +424,7 @@ fun ColorPickerDialog(
                                     hue = hsv[0]
                                     sat = hsv[1]
                                     value = hsv[2]
+                                    selectedIsAppColor = false
                                 }
                         )
                     }
@@ -392,6 +460,7 @@ fun ColorPickerDialog(
                                         hue = hsv[0]
                                         sat = hsv[1]
                                         value = hsv[2]
+                                        selectedIsAppColor = false
                                     }
                             )
                         }
@@ -401,7 +470,11 @@ fun ColorPickerDialog(
         },
         confirmButton = {
             Button(onClick = {
-                onColorSelected(currentColor)
+                if (selectedIsAppColor && onSelectAppColor != null) {
+                    onSelectAppColor()
+                } else {
+                    onColorSelected(currentColor)
+                }
                 onDismiss()
             }) {
                 ButtonLabel(stringResource(R.string.common_save))
@@ -424,6 +497,10 @@ fun ColorPicker(
     color: Int,
     onColor: (Int) -> Unit,
     label: String = stringResource(R.string.widget_colour),
+    appColor: Int? = null,
+    appIcon: ImageBitmap? = null,
+    isAppColorSelected: Boolean = false,
+    onSelectAppColor: (() -> Unit)? = null,
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
@@ -441,21 +518,59 @@ fun ColorPicker(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(label, style = MaterialTheme.typography.bodyLarge)
+                if (isAppColorSelected || (appColor != null && color == appColor && onSelectAppColor == null)) {
+                    Text(
+                        stringResource(R.string.rules_app_colour),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
             Caption(String.format("#%06X", color and 0xFFFFFF))
         }
         Box(
             Modifier
                 .size(36.dp)
                 .background(Color(color), CircleShape)
-                .border(2.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-        )
+                .border(2.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (isAppColorSelected) {
+                if (appIcon != null) {
+                    Image(
+                        bitmap = appIcon,
+                        contentDescription = stringResource(R.string.rules_app_colour),
+                        modifier = Modifier.size(20.dp),
+                    )
+                } else if (appColor != null) {
+                    val r = (appColor shr 16) and 0xFF
+                    val g = (appColor shr 8) and 0xFF
+                    val b = appColor and 0xFF
+                    val isDark = (0.299 * r + 0.587 * g + 0.114 * b) < 140
+                    Icon(
+                        Icons.Rounded.Apps,
+                        contentDescription = stringResource(R.string.rules_app_colour),
+                        modifier = Modifier.size(20.dp),
+                        tint = if (isDark) Color.White else Color.Black,
+                    )
+                }
+            }
+        }
     }
 
     if (showDialog) {
         ColorPickerDialog(
             initialColor = color,
             title = label,
+            appColor = appColor,
+            appIcon = appIcon,
+            isAppColorSelected = isAppColorSelected,
+            onSelectAppColor = onSelectAppColor,
             onDismiss = { showDialog = false },
             onColorSelected = onColor,
         )

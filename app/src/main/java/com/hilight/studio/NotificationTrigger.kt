@@ -172,7 +172,7 @@ class NotificationTrigger : NotificationListenerService() {
         val scope = if (rule.isConversationRule) "chat" else "app"
         Log.i(TAG, "alert for ${info.pkg} rule=$scope match=$how pattern=${rule.pattern.key}")
         val notifKey = info.notifKey.ifEmpty { sbn.key }
-        store.fireAlert(rule, notifKey = notifKey, owner = "notification:${sbn.key}")
+        store.fireAlert(rule, notifKey = notifKey, owner = "notification:${sbn.key}", notifPkg = info.pkg)
         store.noteRuleFired(rule, info)
     }
 
@@ -283,6 +283,7 @@ class NotificationTrigger : NotificationListenerService() {
         if (owner != null) {
             store.showDeviceSignal(owner, Ambient(pattern = Pattern.PULSE, color = settings.callColor, speedMs = 1000), 2500)
         }
+
         scheduleTick()
     }
 

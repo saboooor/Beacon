@@ -681,6 +681,7 @@ private fun RuleCard(
                         stringResource(
                             R.string.rules_card_summary,
                             if (rule.randomColor) stringResource(R.string.rules_random_colour)
+                            else if (rule.appColor && rule.isCatchAll) stringResource(R.string.rules_app_colour)
                             else stringResource(rule.pattern.labelRes),
                             if (rule.trigger == Trigger.NOTIFICATION)
                                 stringResource(R.string.rules_trigger_notification_short)
@@ -881,6 +882,34 @@ private fun RuleEditorDialog(
     var pickingExcludedApp by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
 
+    val appAppearance by produceState<Pair<Int?, androidx.compose.ui.graphics.ImageBitmap?>>(
+        initialValue = null to null,
+        key1 = r.pkg,
+    ) {
+        if (r.isCatchAll) {
+            value = 0xFF2979FF.toInt() to null
+            return@produceState
+        }
+        value = withContext(Dispatchers.IO) {
+            val pm = ctx.packageManager
+            runCatching {
+                val ai = pm.getApplicationInfo(r.pkg, 0)
+                val icon = pm.getApplicationIcon(ai)
+                val bmp = icon.toBitmap(80, 80)
+                val color = AppColor.extractDominantColor(bmp)
+                color to bmp.asImageBitmap()
+            }.getOrDefault(null to null)
+        }
+    }
+    val (appColor, appIcon) = appAppearance
+
+    LaunchedEffect(appColor) {
+        val color = appColor ?: return@LaunchedEffect
+        if (isNew && r.color == AppRule.DEFAULT_COLOR && !r.randomColor && !r.isCatchAll) {
+            r = r.copy(color = color, appColor = true)
+        }
+    }
+
     /*
      * Whether saving would land on a rule other than the one being edited.
      *
@@ -979,15 +1008,30 @@ private fun RuleEditorDialog(
                 if (r.pattern != Pattern.CUSTOM) {
                     ToggleRow(
                         stringResource(R.string.rules_random_colour_each_time), r.randomColor,
-                    ) { r = r.copy(randomColor = it) }
+                    ) { r = r.copy(randomColor = it, appColor = if (it) false else r.appColor) }
                 }
                 if (!r.randomColor && r.pattern != Pattern.CUSTOM) {
-                    ColorPicker(r.color, { r = r.copy(color = it) })
+                    ColorPicker(
+                        r.color,
+                        { r = r.copy(color = it, appColor = false) },
+                        appColor = appColor,
+                        appIcon = appIcon,
+                        isAppColorSelected = r.appColor,
+                        onSelectAppColor = {
+                            if (appColor != null) {
+                                r = r.copy(color = appColor, appColor = true)
+                            }
+                        },
+                    )
                     if (r.pattern == Pattern.GRADIENT) {
                         Caption(stringResource(R.string.rules_gradient_second_colour))
-                        ColorPicker(r.effectiveLook().secondColor, {
-                            r = r.withLook(r.effectiveLook().copy(secondColor = it))
-                        })
+                        ColorPicker(
+                            r.effectiveLook().secondColor,
+                            { r = r.withLook(r.effectiveLook().copy(secondColor = it)) },
+                            label = stringResource(R.string.rules_gradient_second_colour),
+                            appColor = appColor,
+                            appIcon = appIcon,
+                        )
                     }
                 }
                 if (r.pattern == Pattern.CUSTOM) {
