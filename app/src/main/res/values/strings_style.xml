@@ -95,5 +95,7 @@
     <string name="media_colors_original">Original artwork colors</string>
     <string name="media_tap_for_original">Tap colors to view original</string>
     <string name="media_tap_for_optimized">Tap colors to view optimized</string>
+    <string name="media_track_progress_toggle">Show track progress</string>
+    <string name="media_track_progress_hint">Illuminates all 8 LEDs at the start of a song, draining to 0 LEDs at the end.</string>
 
 </resources>

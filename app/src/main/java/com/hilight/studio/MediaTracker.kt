@@ -12,6 +12,7 @@ import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +32,29 @@ data class MediaTrackInfo(
     val rawColors: List<Int> = colors, // 8 LED colors before optimization
     val primaryColor: Int,
     val secondaryColor: Int,
-)
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val playbackSpeed: Float = 1f,
+    val lastPositionUpdateTime: Long = 0L,
+) {
+    /** Estimates current playback position in milliseconds. */
+    fun currentPositionMs(now: Long = runCatching { SystemClock.elapsedRealtime() }.getOrDefault(0L)): Long {
+        var pos = positionMs
+        if (isPlaying && lastPositionUpdateTime > 0L && playbackSpeed > 0f && now > 0L) {
+            val delta = now - lastPositionUpdateTime
+            if (delta > 0L) {
+                pos += (delta * playbackSpeed).toLong()
+            }
+        }
+        return if (durationMs > 0L) pos.coerceIn(0L, durationMs) else maxOf(0L, pos)
+    }
+
+    /** Progress ratio between 0.0 (song start) and 1.0 (song end). */
+    val progress: Float
+        get() = if (durationMs > 0L) {
+            (currentPositionMs().toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+        } else 0f
+}
 
 /** Internal representation of an active media source (app) being tracked. */
 internal data class TrackedMediaSource(
@@ -45,6 +68,10 @@ internal data class TrackedMediaSource(
     var secondaryColor: Int = MediaTracker.DEFAULT_COLOR,
     var isPlaying: Boolean = false,
     var lastActiveTime: Long = 0L,
+    var positionMs: Long = 0L,
+    var durationMs: Long = 0L,
+    var playbackSpeed: Float = 1f,
+    var lastPositionUpdateTime: Long = 0L,
     var controller: MediaController? = null,
     var callback: MediaController.Callback? = null,
 )
@@ -189,7 +216,8 @@ class MediaTracker(
     }
 
     private fun updateFromController(source: TrackedMediaSource, controller: MediaController) {
-        val state = runCatching { controller.playbackState?.state }.getOrNull()
+        val pbState = runCatching { controller.playbackState }.getOrNull()
+        val state = pbState?.state
         val isPlaying = state == PlaybackState.STATE_PLAYING ||
             state == PlaybackState.STATE_BUFFERING ||
             state == PlaybackState.STATE_FAST_FORWARDING ||
@@ -203,9 +231,23 @@ class MediaTracker(
         val artwork = meta?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: meta?.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: meta?.description?.iconBitmap
+        val duration = meta?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+
+        val position = pbState?.position ?: 0L
+        val playbackSpeed = pbState?.playbackSpeed ?: 1f
+        val lastPositionUpdateTime = pbState?.lastPositionUpdateTime ?: 0L
 
         if (title != null) source.title = title
         if (artist != null) source.artist = artist
+        if (duration > 0L) {
+            source.durationMs = duration
+        } else if (meta != null && meta.keySet().contains(MediaMetadata.METADATA_KEY_DURATION)) {
+            source.durationMs = 0L
+        }
+        source.positionMs = maxOf(0L, position)
+        source.playbackSpeed = if (playbackSpeed > 0f) playbackSpeed else 1f
+        source.lastPositionUpdateTime = if (lastPositionUpdateTime > 0L) lastPositionUpdateTime else if (isPlaying) SystemClock.elapsedRealtime() else 0L
+
         if (artwork != null) {
             source.artwork = artwork
             source.rawColors = extractRawLedColors(artwork)
@@ -380,6 +422,10 @@ class MediaTracker(
             rawColors = chosenSource.rawColors.ifEmpty { chosenSource.colors.ifEmpty { fallback } },
             primaryColor = chosenSource.primaryColor,
             secondaryColor = chosenSource.secondaryColor,
+            positionMs = chosenSource.positionMs,
+            durationMs = chosenSource.durationMs,
+            playbackSpeed = chosenSource.playbackSpeed,
+            lastPositionUpdateTime = chosenSource.lastPositionUpdateTime,
         )
         updateTrackInfo(info)
     }
@@ -404,6 +450,10 @@ class MediaTracker(
                 rawColors = rawColors,
                 primaryColor = colors[0],
                 secondaryColor = colors[4],
+                positionMs = 45_000L,
+                durationMs = 180_000L,
+                playbackSpeed = 1f,
+                lastPositionUpdateTime = SystemClock.elapsedRealtime(),
             )
             updateTrackInfo(sampleInfo)
         }

@@ -402,6 +402,9 @@ class Store private constructor(private val app: Context) {
     private val _mediaSyncEnabled =
         MutableStateFlow(prefs.getBoolean("mediaSyncEnabled", false))
     val mediaSyncEnabled: StateFlow<Boolean> = _mediaSyncEnabled.asStateFlow()
+    private val _mediaTrackProgressEnabled =
+        MutableStateFlow(prefs.getBoolean("mediaTrackProgressEnabled", false))
+    val mediaTrackProgressEnabled: StateFlow<Boolean> = _mediaTrackProgressEnabled.asStateFlow()
     val currentMedia: StateFlow<MediaTrackInfo?> get() = mediaTracker.currentMedia
 
     private fun loadChargingPerLed(): List<Int> {
@@ -997,6 +1000,14 @@ class Store private constructor(private val app: Context) {
     fun setMediaSyncEnabled(v: Boolean) {
         _mediaSyncEnabled.value = v
         prefs.edit().putBoolean("mediaSyncEnabled", v).apply()
+        syncMediaProgressTicker()
+        updateMediaOverride()
+    }
+
+    fun setMediaTrackProgressEnabled(v: Boolean) {
+        _mediaTrackProgressEnabled.value = v
+        prefs.edit().putBoolean("mediaTrackProgressEnabled", v).apply()
+        syncMediaProgressTicker()
         updateMediaOverride()
     }
 
@@ -1016,13 +1027,54 @@ class Store private constructor(private val app: Context) {
         )
     }
 
+    private var lastMediaProgressLitCount: Int? = null
+    private var mediaProgressTickerScheduled = false
+    private val mediaProgressTicker = object : Runnable {
+        override fun run() {
+            mediaProgressTickerScheduled = false
+            val media = mediaTracker.currentMedia.value
+            if (_mediaSyncEnabled.value && _mediaTrackProgressEnabled.value && media != null && media.isPlaying && media.durationMs > 0L) {
+                val currentLit = computeMediaProgressLitCount(media.progress)
+                if (currentLit != lastMediaProgressLitCount) {
+                    updateMediaOverride()
+                }
+                main.postDelayed(this, 1000L)
+                mediaProgressTickerScheduled = true
+            }
+        }
+    }
+
+    private fun syncMediaProgressTicker() {
+        val media = mediaTracker.currentMedia.value
+        val shouldRun = _mediaSyncEnabled.value &&
+            _mediaTrackProgressEnabled.value &&
+            media != null &&
+            media.isPlaying &&
+            media.durationMs > 0L
+
+        if (shouldRun) {
+            if (!mediaProgressTickerScheduled) {
+                main.removeCallbacks(mediaProgressTicker)
+                main.postDelayed(mediaProgressTicker, 1000L)
+                mediaProgressTickerScheduled = true
+            }
+        } else {
+            if (mediaProgressTickerScheduled) {
+                main.removeCallbacks(mediaProgressTicker)
+                mediaProgressTickerScheduled = false
+            }
+        }
+    }
+
     private fun onMediaStateChanged(info: MediaTrackInfo?) {
+        syncMediaProgressTicker()
         updateMediaOverride()
     }
 
     fun updateMediaOverride() {
         val media = mediaTracker.currentMedia.value
         if (!_mediaSyncEnabled.value || media == null || !media.isPlaying) {
+            lastMediaProgressLitCount = null
             if (mediaOverride != null) {
                 mediaOverride = null
                 pushCurrent(arm = false)
@@ -1030,17 +1082,29 @@ class Store private constructor(private val app: Context) {
             return
         }
 
+        val showProgress = _mediaTrackProgressEnabled.value && media.durationMs > 0L
+        val colors = if (showProgress) {
+            val lit = computeMediaProgressLitCount(media.progress)
+            lastMediaProgressLitCount = lit
+            computeMediaProgressPerLed(media.progress, media.colors)
+        } else {
+            lastMediaProgressLitCount = null
+            media.colors
+        }
+
         val alertObj = JSONObject().apply {
             put("id", Bridge.nextAlertId())
             put("pattern", "custom")
             put("color", media.primaryColor.toUInt().toLong())
-            put("colors", JSONArray().also { a -> media.colors.forEach { a.put(it.toUInt().toLong()) } })
+            put("colors", JSONArray().also { a -> colors.forEach { a.put(it.toUInt().toLong()) } })
             put("durationMs", 0)
             put("speedMs", 1800)
             put("brightness", 0.8)
             put("source", "media")
-            put("rotateMs", 1500)
-            put("rotateFade", true)
+            if (!showProgress) {
+                put("rotateMs", 1500)
+                put("rotateFade", true)
+            }
             put("spread", true)
         }
         mediaOverride = alertObj
@@ -3570,6 +3634,20 @@ class Store private constructor(private val app: Context) {
             val litCount = if (pct <= 0) 1 else ((pct * LED_COUNT + 99) / 100).coerceIn(1, LED_COUNT)
             return List(LED_COUNT) { index ->
                 if (index < litCount) colors.getOrElse(index) { batteryGradientColor(index, LED_COUNT) } else 0x00000000
+            }
+        }
+
+        fun computeMediaProgressLitCount(progress: Float, n: Int = LED_COUNT): Int {
+            if (progress <= 0f) return n
+            if (progress >= 1f) return 0
+            val remaining = (1f - progress).coerceIn(0f, 1f)
+            return kotlin.math.ceil(remaining * n).toInt().coerceIn(0, n)
+        }
+
+        fun computeMediaProgressPerLed(progress: Float, colors: List<Int>, n: Int = LED_COUNT): List<Int> {
+            val litCount = computeMediaProgressLitCount(progress, n)
+            return List(n) { index ->
+                if (index < litCount) colors.getOrElse(index) { MediaTracker.DEFAULT_COLOR } else 0x00000000
             }
         }
 

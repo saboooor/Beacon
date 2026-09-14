@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,12 +38,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
+
+private fun formatPlaybackTime(ms: Long): String {
+    val totalSeconds = (ms / 1000).coerceAtLeast(0)
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
+}
 
 @Composable
 fun MediaCard(store: Store) {
     val currentMedia by store.mediaTracker.currentMedia.collectAsStateWithLifecycle()
     val mediaSyncEnabled by store.mediaSyncEnabled.collectAsStateWithLifecycle()
+    val mediaTrackProgressEnabled by store.mediaTrackProgressEnabled.collectAsStateWithLifecycle()
     val isSample = store.mediaTracker.isSampleMode()
+
+    var tick by remember { mutableStateOf(0L) }
+    LaunchedEffect(currentMedia?.isPlaying) {
+        if (currentMedia?.isPlaying == true) {
+            while (true) {
+                delay(500L)
+                tick++
+            }
+        }
+    }
 
     PixelCard {
         SectionTitle(
@@ -62,12 +82,20 @@ fun MediaCard(store: Store) {
             var showRawColors by remember { mutableStateOf(false) }
             val displayColors = if (showRawColors) media.rawColors else media.colors
 
-            val previewAmbient = remember(displayColors) {
+            val isProgressMode = mediaTrackProgressEnabled && media.durationMs > 0L
+            val currentProgress = if (tick >= 0) media.progress else 0f
+            val previewColors = if (isProgressMode) {
+                Store.computeMediaProgressPerLed(currentProgress, displayColors)
+            } else {
+                displayColors
+            }
+
+            val previewAmbient = remember(previewColors, isProgressMode) {
                 Ambient(
                     pattern = Pattern.CUSTOM,
-                    perLed = displayColors,
-                    rotateMs = 1500,
-                    rotateFade = true,
+                    perLed = previewColors,
+                    rotateMs = if (isProgressMode) 0 else 1500,
+                    rotateFade = !isProgressMode,
                 )
             }
 
@@ -124,6 +152,14 @@ fun MediaCard(store: Store) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (media.durationMs > 0L) {
+                        val currentPos = if (tick >= 0) media.currentPositionMs() else 0L
+                        Text(
+                            text = "${formatPlaybackTime(currentPos)} / ${formatPlaybackTime(media.durationMs)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         )
                     }
                 }
@@ -202,6 +238,15 @@ fun MediaCard(store: Store) {
             store.setMediaSyncEnabled(it)
         }
         Caption(stringResource(R.string.media_sync_hint))
+
+        // Track Progress Ring Toggle
+        ToggleRow(
+            stringResource(R.string.media_track_progress_toggle),
+            mediaTrackProgressEnabled,
+        ) {
+            store.setMediaTrackProgressEnabled(it)
+        }
+        Caption(stringResource(R.string.media_track_progress_hint))
 
         // Sample music button for easy testing & demo
         OutlinedButton(

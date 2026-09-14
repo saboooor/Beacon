@@ -259,4 +259,84 @@ class MediaTrackerTest {
     fun `selectActiveSource returns null for empty collection`() {
         assertNull(MediaTracker.selectActiveSource(emptyList()))
     }
+
+    @Test
+    fun `computeMediaProgressLitCount drains from 8 to 0 as track progresses`() {
+        // At start (0.0): all 8 LEDs lit
+        assertEquals(8, Store.computeMediaProgressLitCount(0.0f))
+        // Slightly into the song (< 1/8): still full 8 LEDs
+        assertEquals(8, Store.computeMediaProgressLitCount(0.05f))
+        assertEquals(8, Store.computeMediaProgressLitCount(0.124f))
+
+        // 1/8 of the way through: 7 LEDs lit
+        assertEquals(7, Store.computeMediaProgressLitCount(0.125f))
+        assertEquals(7, Store.computeMediaProgressLitCount(0.20f))
+
+        // 2/8 (1/4) of the way through: 6 LEDs lit
+        assertEquals(6, Store.computeMediaProgressLitCount(0.25f))
+
+        // Halfway (4/8): 4 LEDs lit
+        assertEquals(4, Store.computeMediaProgressLitCount(0.50f))
+
+        // 3/4 (6/8): 2 LEDs lit
+        assertEquals(2, Store.computeMediaProgressLitCount(0.75f))
+
+        // 7/8 through: 1 LED lit
+        assertEquals(1, Store.computeMediaProgressLitCount(0.875f))
+        // Near the end: still 1 LED lit
+        assertEquals(1, Store.computeMediaProgressLitCount(0.95f))
+        assertEquals(1, Store.computeMediaProgressLitCount(0.99f))
+
+        // Song end (1.0 or greater): 0 LEDs lit
+        assertEquals(0, Store.computeMediaProgressLitCount(1.0f))
+        assertEquals(0, Store.computeMediaProgressLitCount(1.5f))
+
+        // Negative progress: clamped to 8 LEDs
+        assertEquals(8, Store.computeMediaProgressLitCount(-0.1f))
+    }
+
+    @Test
+    fun `computeMediaProgressPerLed turns off trailing LEDs based on progress`() {
+        val testColors = List(8) { 0xFF102030.toInt() + it }
+
+        // Start of song: all 8 LEDs lit with their respective colors
+        val startPerLed = Store.computeMediaProgressPerLed(0.0f, testColors)
+        assertEquals(8, startPerLed.size)
+        assertEquals(testColors, startPerLed)
+
+        // Halfway through: first 4 lit, last 4 off (0x00000000)
+        val midPerLed = Store.computeMediaProgressPerLed(0.50f, testColors)
+        assertEquals(8, midPerLed.size)
+        for (i in 0 until 4) {
+            assertEquals("LED $i should be lit", testColors[i], midPerLed[i])
+        }
+        for (i in 4 until 8) {
+            assertEquals("LED $i should be off", 0, midPerLed[i])
+        }
+
+        // End of song: all LEDs off (0)
+        val endPerLed = Store.computeMediaProgressPerLed(1.0f, testColors)
+        assertEquals(8, endPerLed.size)
+        assertTrue("All LEDs must be dark at end of track", endPerLed.all { it == 0 })
+    }
+
+    @Test
+    fun `MediaTrackInfo progress accurately reflects playback ratio`() {
+        val colors = List(8) { 0xFF00E5FF.toInt() }
+        val info = MediaTrackInfo(
+            title = "Test Song",
+            artist = "Artist",
+            packageName = "com.test",
+            isPlaying = false,
+            artwork = null,
+            colors = colors,
+            primaryColor = colors[0],
+            secondaryColor = colors[4],
+            positionMs = 60_000L,
+            durationMs = 240_000L,
+        )
+
+        assertEquals(0.25f, info.progress, 0.001f)
+        assertEquals(60_000L, info.currentPositionMs())
+    }
 }

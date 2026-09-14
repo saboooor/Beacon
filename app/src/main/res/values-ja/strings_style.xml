@@ -126,5 +126,7 @@
     <string name="media_colors_original">元のアートワークの色</string>
     <string name="media_tap_for_original">タップして元の色を表示</string>
     <string name="media_tap_for_optimized">タップして最適化された色を表示</string>
+    <string name="media_track_progress_toggle">曲の進行状況を表示</string>
+    <string name="media_track_progress_hint">曲の進行に合わせてLEDが変化します（開始時は8個点灯、終了に向けて0個まで消灯）。</string>
 
 </resources>
