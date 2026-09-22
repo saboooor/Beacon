@@ -509,6 +509,8 @@ fun SetupScreen(store: Store) {
         FilledTonalButton(
             onClick = {
                 updateScope.launch {
+                    val lifecycle = store.lifecycleDiagnostics()
+                    val root = store.root.diagnostics()
                     val payload = withContext(Dispatchers.IO) {
                         val snapshot = store.freshRendererStatusSnapshot()
                         RendererDiagnostics.format(
@@ -521,6 +523,8 @@ fun SetupScreen(store: Store) {
                             buildId = Build.ID,
                             sdkInt = Build.VERSION.SDK_INT,
                             capturedAtEpochMs = snapshot.capturedAtEpochMs,
+                            root = root,
+                            lifecycle = lifecycle,
                         )
                     }
                     copy(ctx, payload, R.string.setup_led_diagnostics_copied)

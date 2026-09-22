@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 /** Root equivalent of the ADB file-bridge gate: visible state always needs a fresh exact identity. */
 internal fun safeRootPush(json: String, status: HelperStatus): AdbPushDecision {
@@ -58,6 +57,10 @@ class RootBackend(private val ctx: Context) : Backend {
     @Volatile private var starting = false
     @Volatile private var checkingPresence = false
     @Volatile private var lastError: String? = null
+    // Retain the last attempt across presence checks; reset only on a new attempt or success.
+    @Volatile private var attempt = RootAttemptDiagnostics()
+
+    fun diagnostics(): RootConnectionDiagnostics = RootConnectionDiagnostics(_state.value, starting, attempt)
 
     var onStateChanged: (() -> Unit)? = null
 
@@ -111,21 +114,31 @@ class RootBackend(private val ctx: Context) : Backend {
     fun ensureStarted(stagedRevision: Long, onComplete: (Boolean) -> Unit) {
         if (starting) return
         starting = true
+        attempt = RootAttemptDiagnostics(RootStartupPhase.PERMISSION)
         Thread({
             var ok = false
+            var phase = "root permission check"
             try {
                 update(State.REQUESTING)
                 val identity = runSu("id", 60)
                 if (identity.code != 0 || !identity.output.contains("uid=0")) {
+                    attempt = RootAttemptDiagnostics(RootStartupPhase.PERMISSION, RootFailureCode.PERMISSION_DENIED)
                     lastError = "Root permission was not granted"
                     update(State.DENIED)
                     return@Thread
                 }
 
+                phase = "previous renderer cleanup"
+                attempt = RootAttemptDiagnostics(RootStartupPhase.CLEANUP)
                 update(State.STARTING)
                 releaseAndStopBridgeRenderer(stagedRevision)
                 val instanceId = "root-${UUID.randomUUID()}"
-                val launch = runSu(RootCommand.start(Bridge.DEVICE_DIR, instanceId), 10)
+                phase = "renderer launch"
+                attempt = RootAttemptDiagnostics(RootStartupPhase.LAUNCH)
+                val launch = runSu(
+                    RootCommand.start(Bridge.DEVICE_DIR, instanceId, ctx.applicationInfo.sourceDir), 10,
+                )
+                check(launch.code == 0) { "launch failed (exit ${launch.code})" }
                 val pid = launch.output.lineSequence()
                     .map { it.trim() }
                     .lastOrNull { it.toIntOrNull()?.let { n -> n > 0 } == true }
@@ -134,6 +147,8 @@ class RootBackend(private val ctx: Context) : Backend {
                 ownedPid = pid
                 ownedInstanceId = instanceId
 
+                phase = "renderer readiness"
+                attempt = RootAttemptDiagnostics(RootStartupPhase.READINESS)
                 val deadline = SystemClock.elapsedRealtime() + 10_000
                 while (SystemClock.elapsedRealtime() < deadline) {
                     val status = Bridge.readStatus(ctx)
@@ -143,6 +158,7 @@ class RootBackend(private val ctx: Context) : Backend {
                     ) {
                         ok = true
                         lastError = null
+                        attempt = RootAttemptDiagnostics()
                         update(State.RUNNING)
                         return@Thread
                     }
@@ -150,7 +166,13 @@ class RootBackend(private val ctx: Context) : Backend {
                 }
                 throw IllegalStateException("root helper did not become ready")
             } catch (t: Throwable) {
-                lastError = t.message ?: t.javaClass.simpleName
+                attempt = attempt.copy(failure = when {
+                    t is RootProcess.CommandTimeout -> RootFailureCode.TIMEOUT
+                    attempt.phase == RootStartupPhase.READINESS -> RootFailureCode.READINESS_FAILED
+                    attempt.phase in setOf(RootStartupPhase.CLEANUP, RootStartupPhase.LAUNCH) -> RootFailureCode.COMMAND_FAILED
+                    else -> RootFailureCode.UNKNOWN
+                })
+                lastError = "$phase: ${t.message ?: t.javaClass.simpleName}"
                 cleanupOwned()
                 update(State.ERROR)
             } finally {
@@ -257,7 +279,7 @@ class RootBackend(private val ctx: Context) : Backend {
             Bridge.forgetStatusInstance(instanceId)
             ownedInstanceId = ""
         }
-        else lastError = "Could not stop the PID-validated root renderer"
+        else lastError = "${lastError.orEmpty()}; could not stop the PID-validated root renderer"
     }
 
     /**
@@ -356,24 +378,11 @@ class RootBackend(private val ctx: Context) : Backend {
         main.post { onStateChanged?.invoke() }
     }
 
-    private data class Result(val code: Int, val output: String)
+    private fun runPlain(command: String, timeoutSeconds: Long = 3): RootProcess.Result =
+        RootProcess.run(listOf("sh", "-c", command), timeoutSeconds)
 
-    private fun runPlain(command: String, timeoutSeconds: Long = 3): Result =
-        runProcess(listOf("sh", "-c", command), timeoutSeconds)
-
-    private fun runSu(command: String, timeoutSeconds: Long): Result =
-        runProcess(listOf("su", "-c", command), timeoutSeconds)
-
-    private fun runProcess(args: List<String>, timeoutSeconds: Long): Result {
-        val process = ProcessBuilder(args).redirectErrorStream(true).start()
-        if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
-            process.destroy()
-            if (!process.waitFor(500, TimeUnit.MILLISECONDS)) process.destroyForcibly()
-            throw IllegalStateException("command timed out")
-        }
-        val output = process.inputStream.bufferedReader().use { it.readText().take(4_096) }
-        return Result(process.exitValue(), output)
-    }
+    private fun runSu(command: String, timeoutSeconds: Long): RootProcess.Result =
+        RootProcess.run(listOf("su", "-c", command), timeoutSeconds)
 
     companion object {
         private const val RELEASE_TIMEOUT_MS = 12_000L

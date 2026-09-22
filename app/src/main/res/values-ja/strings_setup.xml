@@ -294,6 +294,8 @@
     <string name="setup_root_error_body">Root を起動できませんでした。再試行するか、別の設定方法を使用できます。</string>
     <string name="setup_root_retry">Root を再試行</string>
 
+    <string name="setup_root_disconnected_body">root は利用できますが、ライトのレンダラーに接続されていません。root を再試行し、接続できない場合は LED 診断情報をコピーしてください。</string>
+
     <!-- Safety limits toggle and confirmation -->
     <string name="setup_safety_limits_title">安全制限</string>
     <string name="setup_safety_limits_toggle">安全制限を無効化</string>
@@ -302,5 +304,4 @@
     <string name="setup_safety_limits_warn_body">安全制限を無効化すると、10 秒後の減光、50% 点灯率での休止保護、および点灯時間の上限が無効になります。長時間の連続点灯は LED の発熱やバッテリー消費の原因になります。</string>
     <string name="setup_safety_limits_confirm">無効化</string>
     <string name="setup_safety_limits_dismiss">キャンセル</string>
-
 </resources>
