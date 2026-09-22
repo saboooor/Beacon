@@ -272,7 +272,6 @@ fun AmbientScreen(store: Store) {
 
     PresetsCard(store)
     MediaCard(store)
-    ChargingBatteryCard(store)
     DeviceSignalsSection(store)
 }
 
@@ -580,7 +579,7 @@ fun PatternCarousel(
 }
 
 @Composable
-private fun LedSwatch(
+internal fun LedSwatch(
     color: Int,
     selected: Boolean,
     modifier: Modifier = Modifier,
@@ -611,74 +610,3 @@ private fun LedSwatch(
     ) {}
 }
 
-@Composable
-private fun ChargingBatteryCard(store: Store) {
-    val chargingIndicator by store.chargingIndicator.collectAsStateWithLifecycle()
-    val chargingBreathe by store.chargingBreathe.collectAsStateWithLifecycle()
-    val isCharging by store.isCharging.collectAsStateWithLifecycle()
-    val batteryLevel by store.batteryLevel.collectAsStateWithLifecycle()
-    val chargingPerLed by store.chargingPerLed.collectAsStateWithLifecycle()
-    var editingLed by rememberSaveable { mutableIntStateOf(0) }
-
-    PixelCard {
-        SectionTitle(
-            stringResource(R.string.setup_charging_title),
-            trailing = {
-                if (isCharging) {
-                    LivePill(
-                        stringResource(R.string.setup_percent, batteryLevel),
-                        ok = true,
-                    )
-                }
-            },
-        )
-        Caption(stringResource(R.string.setup_charging_hint))
-        ToggleRow(stringResource(R.string.setup_charging_enabled), chargingIndicator) {
-            store.setChargingIndicator(it)
-        }
-        if (chargingIndicator) {
-            val previewColors = remember(batteryLevel, chargingPerLed, isCharging) {
-                Store.computeChargingPerLed(if (isCharging) batteryLevel else 100, chargingPerLed)
-            }
-            val previewAmbient = remember(previewColors) {
-                Ambient(pattern = Pattern.CUSTOM, perLed = previewColors)
-            }
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                HiLightDiscPreview(
-                    pattern = Pattern.CUSTOM,
-                    cfg = previewAmbient,
-                    active = true,
-                    modifier = Modifier.size(90.dp),
-                )
-            }
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                chargingPerLed.forEachIndexed { i, c ->
-                    LedSwatch(
-                        color = c,
-                        selected = i == editingLed,
-                        modifier = Modifier.weight(1f),
-                    ) { editingLed = i }
-                }
-            }
-
-            ColorPicker(
-                color = chargingPerLed.getOrElse(editingLed) { Store.batteryGradientColor(editingLed, LED_COUNT) },
-                onColor = { c -> store.setChargingLedColor(editingLed, c) },
-                label = stringResource(R.string.style_led_number, editingLed + 1),
-            )
-
-            FilledTonalButton(
-                onClick = { store.resetChargingPerLed() },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                ButtonLabel(stringResource(R.string.setup_charging_reset_colors))
-            }
-
-            ToggleRow(stringResource(R.string.setup_charging_breathe), chargingBreathe) {
-                store.setChargingBreathe(it)
-            }
-            Caption(stringResource(R.string.setup_charging_breathe_hint))
-        }
-    }
-}

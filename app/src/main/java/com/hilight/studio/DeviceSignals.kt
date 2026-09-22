@@ -11,6 +11,7 @@ import android.os.Looper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.json.JSONArray
 
 /** Optional signals, independent of existing app rules and disabled for existing installations. */
 data class DeviceSignalSettings(
@@ -19,25 +20,41 @@ data class DeviceSignalSettings(
     val chargedColor: Int = 0xFF00E676.toInt(),
     val fullPercent: Int = 100,
     val chargingGauge: Boolean = false,
+    val chargingPerLedEnabled: Boolean = false,
+    val chargingPerLed: List<Int> = Store.defaultBatteryColors(),
+    val charging247: Boolean = false,
+    val chargingBreathe: Boolean = false,
     val dndEnabled: Boolean = false,
     val dndColor: Int = 0xFF7C4DFF.toInt(),
     val callsEnabled: Boolean = false,
     val callColor: Int = 0xFF00E676.toInt(),
 )
 
-internal fun chargingSignalLook(settings: DeviceSignalSettings, percent: Int): Ambient = Ambient(
-    pattern = if (percent >= settings.fullPercent) Pattern.SOLID else Pattern.BLINK,
-    color = if (percent >= settings.fullPercent) settings.chargedColor else settings.chargingColor,
-    speedMs = 600,
-)
+internal fun chargingSignalLook(settings: DeviceSignalSettings, percent: Int): Ambient {
+    if (settings.chargingPerLedEnabled && percent < settings.fullPercent) {
+        return Ambient(
+            pattern = Pattern.CUSTOM,
+            perLed = settings.chargingPerLed,
+            speedMs = 600,
+        )
+    }
+    return Ambient(
+        pattern = if (percent >= settings.fullPercent) Pattern.SOLID else Pattern.BLINK,
+        color = if (percent >= settings.fullPercent) settings.chargedColor else settings.chargingColor,
+        speedMs = 600,
+    )
+}
 
 /** A static, finite bar; the existing renderer handles the normal brightness/duty limits. */
 internal fun chargingGaugeLook(settings: DeviceSignalSettings, percent: Int): Ambient {
     val level = percent.coerceIn(0, 100)
-    val color = if (level >= settings.fullPercent) settings.chargedColor else settings.chargingColor
+    val isFull = level >= settings.fullPercent
     return Ambient(pattern = Pattern.CUSTOM, perLed = List(LED_COUNT) { index ->
         val fraction = (level * LED_COUNT / 100f - index).coerceIn(0f, 1f)
-        fun channel(shift: Int) = (((color ushr shift) and 255) * fraction).toInt()
+        val baseColor = if (isFull) settings.chargedColor
+            else if (settings.chargingPerLedEnabled) settings.chargingPerLed.getOrElse(index) { settings.chargingColor }
+            else settings.chargingColor
+        fun channel(shift: Int) = (((baseColor ushr shift) and 255) * fraction).toInt()
         (0xFF shl 24) or (channel(16) shl 16) or (channel(8) shl 8) or channel(0)
     })
 }
@@ -81,16 +98,30 @@ class DeviceSignals(
     context: Context,
     private val show: (owner: String, look: Ambient, durationMs: Int) -> Boolean,
     private val cancel: (owner: String) -> Unit,
+    private val onStateChanged: () -> Unit = {},
 ) {
     private val app = context.applicationContext
     private val prefs = app.getSharedPreferences("hilight", Context.MODE_PRIVATE)
     private val handler = Handler(Looper.getMainLooper())
+
+    private fun loadChargingPerLed(): List<Int> {
+        val raw = prefs.getString("signals.chargingPerLed", prefs.getString("chargingPerLed", null)) ?: return Store.defaultBatteryColors()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.optLong(it).toInt() }
+        }.getOrNull()?.takeIf { it.size == LED_COUNT } ?: Store.defaultBatteryColors()
+    }
+
     private val mutableSettings = MutableStateFlow(DeviceSignalSettings(
-        chargingEnabled = prefs.getBoolean("signals.chargingEnabled", false),
+        chargingEnabled = prefs.getBoolean("signals.chargingEnabled", prefs.getBoolean("chargingIndicator", false)),
         chargingColor = prefs.getInt("signals.chargingColor", 0xFF2979FF.toInt()),
         chargedColor = prefs.getInt("signals.chargedColor", 0xFF00E676.toInt()),
         fullPercent = prefs.getInt("signals.fullPercent", 100).coerceIn(1, 100),
-        chargingGauge = prefs.getBoolean("signals.chargingGauge", false),
+        chargingGauge = prefs.getBoolean("signals.chargingGauge", prefs.getBoolean("chargingIndicator", false)),
+        chargingPerLedEnabled = prefs.getBoolean("signals.chargingPerLedEnabled", prefs.contains("chargingPerLed")),
+        chargingPerLed = loadChargingPerLed(),
+        charging247 = prefs.getBoolean("signals.charging247", prefs.getBoolean("chargingIndicator", false)),
+        chargingBreathe = prefs.getBoolean("signals.chargingBreathe", prefs.getBoolean("chargingBreathe", false)),
         dndEnabled = prefs.getBoolean("signals.dndEnabled", false),
         dndColor = prefs.getInt("signals.dndColor", 0xFF7C4DFF.toInt()),
         callsEnabled = prefs.getBoolean("signals.callsEnabled", false),
@@ -115,7 +146,7 @@ class DeviceSignals(
         override fun run() {
             pulseScheduled = false
             if (!masterEnabled || !settings.value.chargingEnabled || !plugged || batteryPercent < 0) return
-            if (settings.value.chargingGauge) return
+            if (settings.value.chargingGauge || settings.value.charging247) return
             show(OWNER_CHARGING, chargingSignalLook(settings.value, batteryPercent), SIGNAL_DURATION_MS)
             // A normal Handler deliberately does not wake a sleeping device.
             pulseScheduled = true
@@ -131,11 +162,15 @@ class DeviceSignals(
             batteryPercent = if (level >= 0 && scale > 0) (level.toLong() * 100 / scale).toInt().coerceIn(0, 100) else -1
             plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
             val showGauge = gaugeEvents.observe(plugged, batteryPercent, settings.value.fullPercent)
-            if (!plugged || batteryPercent < 0) stopCharging()
-            else if (settings.value.chargingGauge) {
+            if (!plugged || batteryPercent < 0) {
+                stopCharging()
+                onStateChanged()
+            } else if (settings.value.charging247) {
+                stopCharging()
+                onStateChanged()
+            } else if (settings.value.chargingGauge) {
                 if (showGauge) show(OWNER_CHARGING, chargingGaugeLook(settings.value, batteryPercent), SIGNAL_DURATION_MS)
-            }
-            else if (!pulseScheduled || wasFull != (batteryPercent >= settings.value.fullPercent)) {
+            } else if (!pulseScheduled || wasFull != (batteryPercent >= settings.value.fullPercent)) {
                 stopCharging()
                 pulse.run()
             }
@@ -145,14 +180,22 @@ class DeviceSignals(
     fun updateSettings(transform: (DeviceSignalSettings) -> DeviceSignalSettings) {
         val old = settings.value
         val proposed = transform(old)
-        val next = proposed.copy(fullPercent = proposed.fullPercent.coerceIn(1, 100))
+        val next = proposed.copy(
+            fullPercent = proposed.fullPercent.coerceIn(1, 100),
+            chargingPerLed = if (proposed.chargingPerLed.size == LED_COUNT) proposed.chargingPerLed else Store.defaultBatteryColors(),
+        )
         if (old == next) return
+        val perLedJson = JSONArray().also { a -> next.chargingPerLed.forEach { a.put(it.toUInt().toLong()) } }.toString()
         prefs.edit()
             .putBoolean("signals.chargingEnabled", next.chargingEnabled)
             .putInt("signals.chargingColor", next.chargingColor)
             .putInt("signals.chargedColor", next.chargedColor)
             .putInt("signals.fullPercent", next.fullPercent)
             .putBoolean("signals.chargingGauge", next.chargingGauge)
+            .putBoolean("signals.chargingPerLedEnabled", next.chargingPerLedEnabled)
+            .putString("signals.chargingPerLed", perLedJson)
+            .putBoolean("signals.charging247", next.charging247)
+            .putBoolean("signals.chargingBreathe", next.chargingBreathe)
             .putBoolean("signals.dndEnabled", next.dndEnabled)
             .putInt("signals.dndColor", next.dndColor)
             .putBoolean("signals.callsEnabled", next.callsEnabled)
@@ -162,14 +205,25 @@ class DeviceSignals(
         if (!next.dndEnabled) cancel(OWNER_DND)
         if (!next.callsEnabled) cancel(OWNER_CALL)
         syncBatteryRegistration()
-        if (old.chargingColor != next.chargingColor || old.chargedColor != next.chargedColor ||
-            old.fullPercent != next.fullPercent || old.chargingGauge != next.chargingGauge) {
+        val chargingSettingsChanged = old.chargingColor != next.chargingColor ||
+            old.chargedColor != next.chargedColor ||
+            old.fullPercent != next.fullPercent ||
+            old.chargingGauge != next.chargingGauge ||
+            old.chargingPerLedEnabled != next.chargingPerLedEnabled ||
+            old.chargingPerLed != next.chargingPerLed ||
+            old.charging247 != next.charging247 ||
+            old.chargingBreathe != next.chargingBreathe ||
+            old.chargingEnabled != next.chargingEnabled
+        if (chargingSettingsChanged) {
             stopCharging()
-            if (next.chargingGauge) {
-                if (masterEnabled && next.chargingEnabled && plugged && batteryPercent >= 0) {
-                    show(OWNER_CHARGING, chargingGaugeLook(next, batteryPercent), SIGNAL_DURATION_MS)
-                }
-            } else pulse.run()
+            onStateChanged()
+            if (!next.charging247) {
+                if (next.chargingGauge) {
+                    if (masterEnabled && next.chargingEnabled && plugged && batteryPercent >= 0) {
+                        show(OWNER_CHARGING, chargingGaugeLook(next, batteryPercent), SIGNAL_DURATION_MS)
+                    }
+                } else pulse.run()
+            }
         }
     }
 
@@ -180,6 +234,7 @@ class DeviceSignals(
             cancel(OWNER_DND)
             cancel(OWNER_CALL)
         }
+        onStateChanged()
     }
 
     fun onInterruptionFilterChanged(filter: Int) {
@@ -191,7 +246,7 @@ class DeviceSignals(
     }
 
     private fun syncBatteryRegistration() {
-        val shouldRegister = masterEnabled && settings.value.chargingEnabled
+        val shouldRegister = (masterEnabled || settings.value.charging247) && settings.value.chargingEnabled
         if (shouldRegister && !registered) {
             registered = true
             app.registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), Context.RECEIVER_NOT_EXPORTED)
@@ -204,6 +259,7 @@ class DeviceSignals(
             batteryPercent = -1
             gaugeEvents.reset()
             stopCharging()
+            onStateChanged()
         }
     }
 

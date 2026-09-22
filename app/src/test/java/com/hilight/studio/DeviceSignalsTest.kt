@@ -11,6 +11,9 @@ class DeviceSignalsTest {
         assertFalse(settings.dndEnabled)
         assertFalse(settings.callsEnabled)
         assertFalse(settings.chargingGauge)
+        assertFalse(settings.chargingPerLedEnabled)
+        assertFalse(settings.charging247)
+        assertFalse(settings.chargingBreathe)
     }
 
     @Test fun chargingSwitchesAtConfiguredThreshold() {
@@ -33,6 +36,58 @@ class DeviceSignalsTest {
         assertEquals(0xFF000000.toInt(), partial[7])
         assertTrue(chargingGaugeLook(settings, -1).perLed.all { it == 0xFF000000.toInt() })
         assertTrue(chargingGaugeLook(settings, 101).perLed.all { it == settings.chargedColor })
+    }
+
+    @Test fun gaugeUsesPerLedColorsWhenEnabled() {
+        val customColors = listOf(
+            0xFFFF0000.toInt(),
+            0xFFFF7F00.toInt(),
+            0xFFFFFF00.toInt(),
+            0xFF00FF00.toInt(),
+            0xFF0000FF.toInt(),
+            0xFF4B0082.toInt(),
+            0xFF9400D3.toInt(),
+            0xFFFFFFFF.toInt(),
+        )
+        val settings = DeviceSignalSettings(
+            chargingPerLedEnabled = true,
+            chargingPerLed = customColors,
+            chargedColor = 0xFF00E676.toInt(),
+            fullPercent = 100,
+        )
+        val look = chargingGaugeLook(settings, 25)
+        assertEquals(Pattern.CUSTOM, look.pattern)
+        // At 25% on 8 LEDs: 25 * 8 / 100 = 2.0 LEDs lit
+        assertEquals(customColors[0], look.perLed[0])
+        assertEquals(customColors[1], look.perLed[1])
+        assertEquals(0xFF000000.toInt(), look.perLed[2])
+    }
+
+    @Test fun chargingSignalUsesPerLedWhenEnabled() {
+        val customColors = List(LED_COUNT) { 0xFF123456.toInt() }
+        val settings = DeviceSignalSettings(
+            chargingPerLedEnabled = true,
+            chargingPerLed = customColors,
+            chargingColor = 0xFF000000.toInt(),
+            chargedColor = 0xFFFFFFFF.toInt(),
+            fullPercent = 90,
+        )
+        val chargingLook = chargingSignalLook(settings, 50)
+        assertEquals(Pattern.CUSTOM, chargingLook.pattern)
+        assertEquals(customColors, chargingLook.perLed)
+
+        val fullLook = chargingSignalLook(settings, 95)
+        assertEquals(Pattern.SOLID, fullLook.pattern)
+        assertEquals(0xFFFFFFFF.toInt(), fullLook.color)
+    }
+
+    @Test fun settingsSupport247AndBreathe() {
+        val settings = DeviceSignalSettings(
+            charging247 = true,
+            chargingBreathe = true,
+        )
+        assertTrue(settings.charging247)
+        assertTrue(settings.chargingBreathe)
     }
 
     @Test fun gaugeSignalsOnceOnPlugAndOnceAtFullWithoutRepeatedBroadcastsOrThresholdJitter() {
@@ -71,6 +126,7 @@ class DeviceSignalsTest {
         assertFalse(dndWasActivated(none, none))
         assertFalse(dndWasActivated(none, all))
     }
+
     @Test fun unknownDndStateStaysSuppressedUntilFreshOffObservation() {
         val all = NotificationManager.INTERRUPTION_FILTER_ALL
         val priority = NotificationManager.INTERRUPTION_FILTER_PRIORITY
@@ -83,5 +139,4 @@ class DeviceSignalsTest {
         assertFalse(dndWasActivated(unknown, priority))
         assertTrue(dndWasActivated(all, priority))
     }
-
 }

@@ -318,7 +318,9 @@ class Store private constructor(private val app: Context) {
     private val prefs = app.getSharedPreferences("hilight", Context.MODE_PRIVATE)
     private val main = Handler(Looper.getMainLooper())
 
-    val deviceSignals = DeviceSignals(app, ::showDeviceSignal, ::cancelOwnedAlert)
+    val deviceSignals = DeviceSignals(app, ::showDeviceSignal, ::cancelOwnedAlert) {
+        main.post { refreshChargingState() }
+    }
     val mediaTracker = MediaTracker(app) { onMediaStateChanged(it) }
     val shizukuRecovery = ShizukuRecoveryNotification(app)
 
@@ -391,14 +393,6 @@ class Store private constructor(private val app: Context) {
     private val _saverGuard = MutableStateFlow(prefs.getBoolean("saverGuard", true))
     val saverGuard: StateFlow<Boolean> = _saverGuard.asStateFlow()
 
-    private val _chargingIndicator =
-        MutableStateFlow(prefs.getBoolean("chargingIndicator", false))
-    val chargingIndicator: StateFlow<Boolean> = _chargingIndicator.asStateFlow()
-
-    private val _chargingBreathe =
-        MutableStateFlow(prefs.getBoolean("chargingBreathe", false))
-    val chargingBreathe: StateFlow<Boolean> = _chargingBreathe.asStateFlow()
-
     private val _mediaSyncEnabled =
         MutableStateFlow(prefs.getBoolean("mediaSyncEnabled", false))
     val mediaSyncEnabled: StateFlow<Boolean> = _mediaSyncEnabled.asStateFlow()
@@ -406,17 +400,6 @@ class Store private constructor(private val app: Context) {
         MutableStateFlow(prefs.getBoolean("mediaTrackProgressEnabled", false))
     val mediaTrackProgressEnabled: StateFlow<Boolean> = _mediaTrackProgressEnabled.asStateFlow()
     val currentMedia: StateFlow<MediaTrackInfo?> get() = mediaTracker.currentMedia
-
-    private fun loadChargingPerLed(): List<Int> {
-        val raw = prefs.getString("chargingPerLed", null) ?: return defaultBatteryColors()
-        return runCatching {
-            val arr = JSONArray(raw)
-            (0 until arr.length()).map { arr.optLong(it).toInt() }
-        }.getOrNull()?.takeIf { it.size == LED_COUNT } ?: defaultBatteryColors()
-    }
-
-    private val _chargingPerLed = MutableStateFlow(loadChargingPerLed())
-    val chargingPerLed: StateFlow<List<Int>> = _chargingPerLed.asStateFlow()
 
     private val _isCharging = MutableStateFlow(false)
     val isCharging: StateFlow<Boolean> = _isCharging.asStateFlow()
@@ -964,37 +947,6 @@ class Store private constructor(private val app: Context) {
         prefs.edit().putBoolean("saverGuard", v).apply()
         refreshSuppression()
         pushCurrent()
-    }
-
-    fun setChargingIndicator(v: Boolean) {
-        _chargingIndicator.value = v
-        prefs.edit().putBoolean("chargingIndicator", v).apply()
-        refreshChargingState()
-    }
-
-    fun setChargingBreathe(v: Boolean) {
-        _chargingBreathe.value = v
-        prefs.edit().putBoolean("chargingBreathe", v).apply()
-        refreshChargingState()
-    }
-
-    fun setChargingPerLed(colors: List<Int>) {
-        _chargingPerLed.value = colors
-        val arr = JSONArray().also { a -> colors.forEach { a.put(it.toUInt().toLong()) } }
-        prefs.edit().putString("chargingPerLed", arr.toString()).apply()
-        refreshChargingState()
-    }
-
-    fun setChargingLedColor(index: Int, color: Int) {
-        val updated = _chargingPerLed.value.toMutableList()
-        if (index in updated.indices) {
-            updated[index] = color
-            setChargingPerLed(updated)
-        }
-    }
-
-    fun resetChargingPerLed() {
-        setChargingPerLed(defaultBatteryColors())
     }
 
     fun setMediaSyncEnabled(v: Boolean) {
@@ -1610,7 +1562,7 @@ class Store private constructor(private val app: Context) {
     /** The highest layer that should currently be showing: alert, else override, else charging, else media, else ambient. */
     fun pushCurrent(arm: Boolean = true) =
         send(
-            _enabled.value || (_chargingIndicator.value && _isCharging.value) || (_mediaSyncEnabled.value && (mediaTracker.currentMedia.value?.isPlaying == true)),
+            _enabled.value || (deviceSignals.settings.value.chargingEnabled && deviceSignals.settings.value.charging247 && _isCharging.value) || (_mediaSyncEnabled.value && (mediaTracker.currentMedia.value?.isPlaying == true)),
             activeAlert ?: foregroundOverride?.second ?: chargingOverride ?: mediaOverride,
             arm,
         )
@@ -1976,7 +1928,10 @@ class Store private constructor(private val app: Context) {
         _batteryLevel.value = pct
         _isCharging.value = plugged
 
-        if (!_chargingIndicator.value || !plugged) {
+        val sig = deviceSignals.settings.value
+        val shouldShow247 = (_enabled.value || sig.chargingEnabled) && sig.chargingEnabled && sig.charging247 && plugged
+
+        if (!shouldShow247) {
             if (chargingOverride != null) {
                 chargingOverride = null
                 pushCurrent(arm = false)
@@ -1984,14 +1939,14 @@ class Store private constructor(private val app: Context) {
             return
         }
 
-        val perLed = computeChargingPerLed(pct, _chargingPerLed.value)
+        val gaugeLook = chargingGaugeLook(sig, pct)
         val alertObj = JSONObject().apply {
             put("id", Bridge.nextAlertId())
             put("pattern", "custom")
             put("level", pct)
-            put("breathe", _chargingBreathe.value)
-            put("color", perLed.firstOrNull { it != 0 }?.toUInt()?.toLong() ?: 0xFF00E676L)
-            put("colors", JSONArray().also { a -> perLed.forEach { a.put(it.toUInt().toLong()) } })
+            put("breathe", sig.chargingBreathe && pct < sig.fullPercent)
+            put("color", (if (pct >= sig.fullPercent) sig.chargedColor else sig.chargingColor).toUInt().toLong())
+            put("colors", JSONArray().also { a -> gaugeLook.perLed.forEach { a.put(it.toUInt().toLong()) } })
             put("durationMs", 0)
             put("speedMs", 2000)
             put("brightness", 0.8)
